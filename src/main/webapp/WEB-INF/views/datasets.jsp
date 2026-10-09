@@ -48,12 +48,14 @@
                     </form>
                 </details>
             </section>
+
             <c:if test="${param.notice eq 'uploaded'}"><div class="alert alert-success" role="status">Dataset uploaded and profiled successfully.</div></c:if>
             <c:if test="${param.notice eq 'updated'}"><div class="alert alert-success" role="status">Dataset details updated.</div></c:if>
             <c:if test="${param.notice eq 'deleted'}"><div class="alert alert-success" role="status">Dataset removed from this workspace.</div></c:if>
             <c:if test="${param.error eq 'size'}"><div class="alert alert-error" role="alert">Choose a non-empty CSV file smaller than 10 MB.</div></c:if>
             <c:if test="${param.error eq 'format'}"><div class="alert alert-error" role="alert">This upload accepts CSV files only.</div></c:if>
-                        <c:if test="${param.error eq 'csv-empty'}"><div class="alert alert-error" role="alert">The CSV is empty. Add a header row and data, then upload it again.</div></c:if>
+            <c:if test="${param.error eq 'csv'}"><div class="alert alert-error" role="alert">The CSV upload could not be read. Check the file and try again.</div></c:if>
+            <c:if test="${param.error eq 'csv-empty'}"><div class="alert alert-error" role="alert">The CSV is empty. Add a header row and data, then upload it again.</div></c:if>
             <c:if test="${param.error eq 'csv-header'}"><div class="alert alert-error" role="alert">Check the header row: every column needs a name, and header names must be unique.</div></c:if>
             <c:if test="${param.error eq 'csv-rows'}"><div class="alert alert-error" role="alert">Each data row must have the same number of values as the header.</div></c:if>
             <c:if test="${param.error eq 'csv-quotes'}"><div class="alert alert-error" role="alert">Check the CSV quotation marks. A quoted value may be missing a closing quote.</div></c:if>
@@ -68,6 +70,7 @@
                 <div class="project-summary"><span class="summary-icon summary-icon-green">PR</span><span><strong><c:out value="${activeProjectCount}"/></strong><small>Active projects</small></span></div>
                 <div class="project-summary"><span class="summary-icon summary-icon-purple">AI</span><span><strong>CSV profile</strong><small>Types, missing and distinct values</small></span></div>
             </section>
+
             <c:if test="${not empty selectedDataset}">
                 <section class="panel dataset-detail-panel">
                     <div class="detail-header">
@@ -95,6 +98,46 @@
                     </div>
                 </section>
             </c:if>
+
             <section class="panel project-list-panel dataset-list-panel">
                 <div class="panel-heading project-list-heading">
                     <div><p class="eyebrow">DATA CATALOG</p><h2><c:choose><c:when test="${not empty selectedDataset}">Other datasets</c:when><c:otherwise>Uploaded datasets</c:otherwise></c:choose></h2></div>
+                    <span class="quiet-label"><c:out value="${datasets.size()}"/> total</span>
+                </div>
+                <c:choose>
+                    <c:when test="${empty datasets}">
+                        <div class="project-empty"><span class="empty-mark" aria-hidden="true">DS</span><h3>No datasets yet</h3><p>Upload a CSV to create a data profile and make it available to your project members.</p></div>
+                    </c:when>
+                    <c:otherwise>
+                        <div class="table-scroll">
+                            <table class="data-table">
+                                <thead><tr><th>DATASET</th><th>PROJECT</th><th>ROWS / FIELDS</th><th>SIZE</th><th>UPLOADED BY</th><th>ACTIONS</th></tr></thead>
+                                <tbody><c:forEach var="dataset" items="${datasets}">
+                                    <tr>
+                                        <td><div class="project-name-cell"><span class="dataset-file-icon dataset-file-icon-small">CSV</span><span><strong><c:out value="${dataset.name}"/></strong><small><c:out value="${dataset.originalFilename}"/></small></span></div></td>
+                                        <td><span class="owner-name"><c:out value="${dataset.projectTitle}"/></span></td>
+                                        <td><span class="table-count"><c:out value="${dataset.rowCount}"/> rows</span> <span class="table-count"><c:out value="${dataset.columnCount}"/> cols</span></td>
+                                        <td><c:out value="${dataset.formattedSize}"/></td>
+                                        <td><span class="owner-name"><c:out value="${dataset.uploadedByName}"/></span></td>
+                                        <td class="table-actions"><a class="text-action" href="${pageContext.request.contextPath}/datasets?view=${dataset.id}">View profile</a>
+                                            <c:if test="${isAdmin or dataset.uploadedById eq currentUser.id}">
+                                                <form method="post" action="${pageContext.request.contextPath}/datasets" data-confirm="Delete this dataset and its saved profile?">
+                                                    <input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>"/><input type="hidden" name="action" value="delete"/><input type="hidden" name="datasetId" value="<c:out value='${dataset.id}'/>"/>
+                                                    <button class="text-action text-action-muted" type="submit">Delete</button>
+                                                </form>
+                                            </c:if>
+                                        </td>
+                                    </tr>
+                                </c:forEach></tbody>
+                            </table>
+                        </div>
+                    </c:otherwise>
+                </c:choose>
+            </section>
+            <footer class="page-footer"><span>DataHive Research Platform</span><span>Uploads are stored locally and excluded from the source repository.</span></footer>
+        </div>
+    </main>
+</div>
+<script src="${pageContext.request.contextPath}/assets/js/app.js?v=20261008-photo-menu4" defer></script>
+</body>
+</html>
