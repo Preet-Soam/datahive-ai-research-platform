@@ -125,7 +125,15 @@ public final class DatasetServlet extends HttpServlet {
                 Files.copy(input, storedPath, StandardCopyOption.REPLACE_EXISTING);
             }
 
-            CsvProfiler.Profile profile = csvProfiler.inspect(storedPath);
+            CsvProfiler.Profile profile;
+            try {
+                profile = csvProfiler.inspect(storedPath);
+            } catch (IOException invalidCsv) {
+                deleteStored(storedPath);
+                response.sendRedirect(request.getContextPath()
+                        + "/datasets?error=" + csvErrorCode(invalidCsv));
+                return;
+            }
             String name = clean(request.getParameter("name"));
             if (name.isBlank()) {
                 name = withoutExtension(originalFilename);
@@ -198,6 +206,19 @@ public final class DatasetServlet extends HttpServlet {
         long id = Long.parseLong(value);
         if (id < 1) throw new NumberFormatException("Identifier must be positive");
         return id;
+    }
+
+    private static String csvErrorCode(IOException exception) {
+        String message = exception.getMessage() == null
+                ? ""
+                : exception.getMessage().toLowerCase(Locale.ROOT);
+
+        if (message.contains("empty")) return "csv-empty";
+        if (message.contains("header")) return "csv-header";
+        if (message.contains("row") || message.contains("values")) return "csv-rows";
+        if (message.contains("quote")) return "csv-quotes";
+        if (message.contains("columns" ) || message.contains("up to")) return "csv-limit";
+        return "csv-invalid";
     }
 
     private static void deleteStored(Path path) {
