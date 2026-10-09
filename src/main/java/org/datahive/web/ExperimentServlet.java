@@ -15,11 +15,15 @@ import org.datahive.model.Project;
 import org.datahive.model.TrainingExperiment;
 import org.datahive.model.User;
 import org.datahive.service.TrainingService;
+import org.datahive.service.ActivityLogger;
 
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @WebServlet(name = "ExperimentServlet", urlPatterns = "/experiments")
 public final class ExperimentServlet extends HttpServlet {
@@ -33,9 +37,27 @@ public final class ExperimentServlet extends HttpServlet {
         User user = (User) request.getAttribute("currentUser");
         try {
             request.setAttribute("datasets", datasetDao.findVisibleTo(user));
-            request.setAttribute("experiments", experimentDao.listVisible(user));
+            List<TrainingExperiment> experiments = experimentDao.listVisible(user);
+            request.setAttribute("experiments", experiments);
             request.setAttribute("activePage", "experiments");
             request.setAttribute("initials", initials(user.getFullName()));
+            if ("selected".equals(request.getParameter("compare"))) {
+                String[] requestedIds = request.getParameterValues("compareId");
+                Set<Long> selectedIds = new LinkedHashSet<>();
+                boolean invalidId = false;
+                if (requestedIds != null) for (String requestedId : requestedIds) {
+                    try { selectedIds.add(positiveId(requestedId)); }
+                    catch (NumberFormatException exception) { invalidId = true; }
+                }
+                List<TrainingExperiment> selectedRuns = experiments.stream()
+                        .filter(run -> selectedIds.contains(run.getId()))
+                        .filter(run -> "COMPLETED".equals(run.getStatus())).toList();
+                if (invalidId || selectedIds.size() < 2 || selectedIds.size() > 4 || selectedRuns.size() != selectedIds.size()) {
+                    request.setAttribute("comparisonError", "Choose two to four completed runs. Each run needs saved evaluation metrics.");
+                } else {
+                    request.setAttribute("comparisonExperiments", selectedRuns);
+                }
+            }
             String view = request.getParameter("view");
             if (view != null && !view.isBlank()) {
                 TrainingExperiment selected = experimentDao.findVisible(positiveId(view), user);
@@ -72,10 +94,16 @@ public final class ExperimentServlet extends HttpServlet {
                 response.sendRedirect(request.getContextPath() + "/experiments?error=project"); return;
             }
             boolean targetExists = dataset.getColumns().stream().anyMatch(column -> column.getName().equals(target));
-            List<String> features = dataset.getColumns().stream()
+            List<String> availableFeatures = dataset.getColumns().stream()
                     .filter(column -> !column.getName().equals(target))
                     .filter(ExperimentServlet::isNumeric)
                     .map(ColumnProfile::getName).toList();
+            String[] submittedFeatures = request.getParameterValues("featureColumns");
+            List<String> features = submittedFeatures == null ? availableFeatures :
+                    Arrays.stream(submittedFeatures).map(ExperimentServlet::clean).filter(value -> !value.isBlank()).distinct().toList();
+            if (features.stream().anyMatch(feature -> !availableFeatures.contains(feature))) {
+                response.sendRedirect(request.getContextPath() + "/experiments?error=features"); return;
+            }
             if (!targetExists || features.isEmpty()) {
                 response.sendRedirect(request.getContextPath() + "/experiments?error=features"); return;
             }
@@ -92,6 +120,10 @@ public final class ExperimentServlet extends HttpServlet {
                 experimentDao.fail(ticket.runId(), "The training queue is full. Please try again shortly.");
                 response.sendRedirect(request.getContextPath() + "/experiments?error=queue"); return;
             }
+            ActivityLogger.record(user, "TRAINING_QUEUED", "Training run", ticket.runId(),
+                    "Queued experiment '" + name + "' using dataset '" + dataset.getName() + "' from project '" + project.getTitle() +
+                            "'. Target: " + target + "; numeric features: " + String.join(", ", features) +
+                            "; epochs: " + epochs + "; learning rate: " + learningRate + ".");
             response.sendRedirect(request.getContextPath() + "/experiments?view=" + ticket.experimentId() + "&notice=queued");
         } catch (NumberFormatException exception) {
             response.sendRedirect(request.getContextPath() + "/experiments?error=validation");

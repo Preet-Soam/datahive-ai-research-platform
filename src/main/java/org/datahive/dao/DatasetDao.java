@@ -32,7 +32,10 @@ public final class DatasetDao {
              PreparedStatement statement = connection.prepareStatement(sql)) {
             if (user.getRole() != Role.ADMIN) statement.setLong(1, user.getId());
             try (ResultSet result = statement.executeQuery()) {
-                while (result.next()) datasets.add(map(result, List.of()));
+                while (result.next()) {
+                    long datasetId = result.getLong("id");
+                    datasets.add(map(result, loadColumns(connection, datasetId)));
+                }
             }
         }
         return datasets;
@@ -151,6 +154,25 @@ public final class DatasetDao {
             } finally {
                 connection.setAutoCommit(true);
             }
+        }
+    }
+
+    public boolean updateMetadata(long datasetId, String name, String description, User user)
+            throws SQLException {
+        String sql = "UPDATE datasets SET name = ?, description = ? WHERE id = ?" +
+                (user.getRole() == Role.ADMIN ? "" :
+                        " AND uploaded_by = ? AND EXISTS (SELECT 1 FROM project_members pm " +
+                                "WHERE pm.project_id = datasets.project_id AND pm.user_id = ?)");
+        try (Connection connection = Database.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, name);
+            statement.setString(2, description);
+            statement.setLong(3, datasetId);
+            if (user.getRole() != Role.ADMIN) {
+                statement.setLong(4, user.getId());
+                statement.setLong(5, user.getId());
+            }
+            return statement.executeUpdate() == 1;
         }
     }
 

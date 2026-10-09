@@ -15,6 +15,7 @@ import org.datahive.model.Project;
 import org.datahive.model.Role;
 import org.datahive.model.User;
 import org.datahive.service.CsvProfiler;
+import org.datahive.service.ActivityLogger;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -84,6 +85,10 @@ public final class DatasetServlet extends HttpServlet {
             delete(request, response, user);
             return;
         }
+        if ("update".equals(action)) {
+            updateMetadata(request, response, user);
+            return;
+        }
         if (!"upload".equals(action)) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Unknown dataset action");
             return;
@@ -144,8 +149,10 @@ public final class DatasetServlet extends HttpServlet {
                 response.sendRedirect(request.getContextPath() + "/datasets?error=validation");
                 return;
             }
-            datasetDao.create(projectId, name, description, originalFilename, storedFilename,
+            long datasetId = datasetDao.create(projectId, name, description, originalFilename, storedFilename,
                     file.getSize(), user.getId(), profile);
+            ActivityLogger.record(user, "DATASET_UPLOADED", "Dataset", datasetId,
+                    "Uploaded dataset '" + name + "' to project '" + project.getTitle() + "' (" + profile.rowCount() + " rows, " + profile.columnCount() + " columns).");
             response.sendRedirect(request.getContextPath() + "/datasets?notice=uploaded");
         } catch (NumberFormatException exception) {
             deleteStored(storedPath);
@@ -159,14 +166,42 @@ public final class DatasetServlet extends HttpServlet {
         }
     }
 
+    private void updateMetadata(HttpServletRequest request, HttpServletResponse response, User user)
+            throws ServletException, IOException {
+        try {
+            long datasetId = positiveId(request.getParameter("datasetId"));
+            String name = clean(request.getParameter("name"));
+            String description = clean(request.getParameter("description"));
+            if (name.length() < 2 || name.length() > 160 || description.length() > 1000) {
+                response.sendRedirect(request.getContextPath() + "/datasets?view=" + datasetId + "&error=metadata");
+                return;
+            }
+            if (!datasetDao.updateMetadata(datasetId, name, description, user)) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "Dataset not found or cannot be edited");
+                return;
+            }
+            ActivityLogger.record(user, "DATASET_UPDATED", "Dataset", datasetId,
+                    "Updated dataset details for '" + name + "'.");
+            response.sendRedirect(request.getContextPath() + "/datasets?view=" + datasetId + "&notice=updated");
+        } catch (NumberFormatException exception) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid dataset identifier");
+        } catch (SQLException exception) {
+            throw new ServletException("Could not update dataset details", exception);
+        }
+    }
+
     private void delete(HttpServletRequest request, HttpServletResponse response, User user)
             throws ServletException, IOException {
         try {
-            Optional<String> stored = datasetDao.delete(positiveId(request.getParameter("datasetId")), user);
+            long datasetId = positiveId(request.getParameter("datasetId"));
+            Dataset dataset = datasetDao.findVisibleById(datasetId, user).orElse(null);
+            Optional<String> stored = datasetDao.delete(datasetId, user);
             if (stored.isEmpty()) {
                 response.sendError(HttpServletResponse.SC_NOT_FOUND, "Dataset not found or cannot be deleted");
                 return;
             }
+            ActivityLogger.record(user, "DATASET_DELETED", "Dataset", datasetId,
+                    "Deleted dataset '" + (dataset == null ? "Dataset #" + datasetId : dataset.getName()) + "'.");
             Path path = uploadRoot().resolve(stored.get()).normalize();
             if (path.startsWith(uploadRoot())) Files.deleteIfExists(path);
             response.sendRedirect(request.getContextPath() + "/datasets?notice=deleted");

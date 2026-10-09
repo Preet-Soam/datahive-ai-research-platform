@@ -1,0 +1,9 @@
+.git
+.github
+.tools
+target
+data
+uploads
+presentation
+.env
+*.log

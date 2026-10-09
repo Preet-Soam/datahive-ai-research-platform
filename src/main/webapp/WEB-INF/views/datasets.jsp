@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/app.css?v=20261008-photo-menu4">
+    <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/app.css?v=20261009-research-ui1">
 </head>
 <body class="app-page">
 <div class="app-shell">
@@ -49,6 +49,7 @@
                 </details>
             </section>
             <c:if test="${param.notice eq 'uploaded'}"><div class="alert alert-success" role="status">Dataset uploaded and profiled successfully.</div></c:if>
+            <c:if test="${param.notice eq 'updated'}"><div class="alert alert-success" role="status">Dataset details updated.</div></c:if>
             <c:if test="${param.notice eq 'deleted'}"><div class="alert alert-success" role="status">Dataset removed from this workspace.</div></c:if>
             <c:if test="${param.error eq 'size'}"><div class="alert alert-error" role="alert">Choose a non-empty CSV file smaller than 10 MB.</div></c:if>
             <c:if test="${param.error eq 'format'}"><div class="alert alert-error" role="alert">This upload accepts CSV files only.</div></c:if>
@@ -60,6 +61,8 @@
             <c:if test="${param.error eq 'csv-invalid'}"><div class="alert alert-error" role="alert">We couldn’t read this CSV. Check its formatting and try again.</div></c:if>
             <c:if test="${param.error eq 'project'}"><div class="alert alert-error" role="alert">Select an active project you can access.</div></c:if>
             <c:if test="${param.error eq 'validation'}"><div class="alert alert-error" role="alert">Check the dataset name and description, then try again.</div></c:if>
+            <c:if test="${param.error eq 'metadata'}"><div class="alert alert-error" role="alert">Use a dataset name of 2–160 characters and a description no longer than 1,000 characters.</div></c:if>
+
             <section class="project-summary-row" aria-label="Dataset totals">
                 <div class="project-summary"><span class="summary-icon summary-icon-blue">DS</span><span><strong><c:out value="${datasets.size()}"/></strong><small>Visible datasets</small></span></div>
                 <div class="project-summary"><span class="summary-icon summary-icon-green">PR</span><span><strong><c:out value="${activeProjectCount}"/></strong><small>Active projects</small></span></div>
@@ -77,6 +80,11 @@
                         <div><strong><c:out value="${selectedDataset.formattedSize}"/></strong><span>file size</span></div>
                         <div><strong><c:out value="${selectedDataset.uploadedByName}"/></strong><span>uploaded by</span></div>
                     </div>
+                    <c:if test="${isAdmin or selectedDataset.uploadedById eq currentUser.id}">
+                        <details class="dataset-edit-panel"><summary><span class="dataset-edit-mark">ED</span><span><strong>Edit dataset details</strong><small>Update its display name or research notes.</small></span></summary>
+                            <form class="dataset-edit-form" method="post" action="${pageContext.request.contextPath}/datasets"><input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>"/><input type="hidden" name="action" value="update"/><input type="hidden" name="datasetId" value="<c:out value='${selectedDataset.id}'/>"/><label>Dataset name<input name="name" value="<c:out value='${selectedDataset.name}'/>" required minlength="2" maxlength="160"/></label><label>Research notes<textarea name="description" rows="2" maxlength="1000"><c:out value="${selectedDataset.description}"/></textarea></label><button class="button button-secondary" type="submit">Save details</button></form>
+                        </details>
+                    </c:if>
                     <c:if test="${not empty selectedDataset.description}"><p class="dataset-description"><c:out value="${selectedDataset.description}"/></p></c:if>
                     <div class="panel-heading profile-heading"><div><p class="eyebrow">COLUMN-LEVEL INSPECTION</p><h2>Data profile</h2></div><span class="quiet-label">Inferred from uploaded CSV</span></div>
                     <div class="table-scroll">

@@ -10,6 +10,7 @@ import org.datahive.dao.ProjectDao;
 import org.datahive.model.Project;
 import org.datahive.model.Role;
 import org.datahive.model.User;
+import org.datahive.service.ActivityLogger;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -72,6 +73,8 @@ public final class ProjectServlet extends HttpServlet {
                     response.sendError(HttpServletResponse.SC_NOT_FOUND, "Project not found or already archived");
                     return;
                 }
+                ActivityLogger.record(user, "PROJECT_ARCHIVED", "Project", id,
+                        "Archived project workspace #" + id + ".");
                 response.sendRedirect(request.getContextPath() + "/projects?notice=archived");
                 return;
             }
@@ -92,7 +95,9 @@ public final class ProjectServlet extends HttpServlet {
             }
 
             if ("create".equals(action)) {
-                projectDao.create(title, description, ownerId);
+                long projectId = projectDao.create(title, description, ownerId);
+                ActivityLogger.record(user, "PROJECT_CREATED", "Project", projectId,
+                        "Created project workspace '" + title + "'.");
                 response.sendRedirect(request.getContextPath() + "/projects?notice=created");
             } else if ("update".equals(action)) {
                 long id = positiveId(request.getParameter("projectId"));
@@ -100,6 +105,8 @@ public final class ProjectServlet extends HttpServlet {
                     response.sendError(HttpServletResponse.SC_NOT_FOUND, "Project not found or cannot be edited");
                     return;
                 }
+                ActivityLogger.record(user, "PROJECT_UPDATED", "Project", id,
+                        "Updated project workspace '" + title + "'.");
                 response.sendRedirect(request.getContextPath() + "/projects?notice=updated");
             } else {
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Unknown project action");
