@@ -1,0 +1,94 @@
+<aside class="sidebar" data-sidebar>
+    <a class="brand sidebar-brand" href="${pageContext.request.contextPath}/app" aria-label="DataHive overview">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span class="brand-name">data<span>hive</span></span>
+    </a>
+    <div class="workspace-switcher">
+        <span class="workspace-icon">R</span>
+        <span class="workspace-copy"><strong>Research lab</strong><small>Personal workspace</small></span>
+        <span class="workspace-chevron" aria-hidden="true">v</span>
+    </div>
+    <nav class="side-nav" aria-label="Main navigation">
+        <p class="nav-heading">WORKSPACE</p>
+        <a class="nav-link nav-link-home ${activePage eq 'overview' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/app" ${activePage eq 'overview' ? 'aria-current="page"' : ''}>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path fill-rule="evenodd" d="M2.75 9 10 3l7.25 6v8H2.75V9Zm5.25 8h4v-5h-4v5Z"/></svg></span><span>Overview</span>
+        </a>
+        <a class="nav-link ${activePage eq 'projects' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/projects" ${activePage eq 'projects' ? 'aria-current="page"' : ''}>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M2.75 6h5.1l1.7 1.7h7.7v7.5a1 1 0 0 1-1 1H3.75a1 1 0 0 1-1-1V6.9a.9.9 0 0 1 .9-.9Z"/><path d="M2.75 8h14.5"/></svg></span><span>Projects</span>
+        </a>
+        <a class="nav-link ${activePage eq 'datasets' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/datasets" ${activePage eq 'datasets' ? 'aria-current="page"' : ''}>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M5 3.5h7l3 3v10H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"/><path d="M12 3.5v3h3M6.5 10h7M6.5 13h7"/></svg></span><span>Datasets</span>
+        </a>
+        <a class="nav-link ${activePage eq 'experiments' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/experiments" ${activePage eq 'experiments' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M3 16.5h14M4.5 13.5l3.2-3.2 2.5 2 5.3-6"/><path d="M12.5 6.3h3v3"/></svg></span><span>Experiments</span></a>
+        <a class="nav-link ${activePage eq 'collaboration' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/collaboration" ${activePage eq 'collaboration' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><circle cx="7" cy="7" r="2.5"/><circle cx="14" cy="8" r="2"/><path d="M2.75 16c.35-2.5 1.9-3.8 4.25-3.8s3.9 1.3 4.25 3.8M12 12.5c2.5-.5 4.3.8 4.8 3.5"/></svg></span><span>Collaboration</span></a>
+
+        <c:if test="${isAdmin}">
+            <p class="nav-heading nav-heading-spaced">ADMINISTRATION</p>
+            <a class="nav-link ${activePage eq 'admin' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M10 2.5 16 5v4.3c0 4-2.3 6.7-6 8.2-3.7-1.5-6-4.2-6-8.2V5l6-2.5Z"/><path d="m7.5 9.8 1.7 1.7 3.5-3.7"/></svg></span><span>Administration</span></a>
+        </c:if>
+    </nav>
+    <div class="sidebar-bottom">
+        <button class="sidebar-help" type="button" data-help-toggle aria-expanded="false" aria-controls="help-panel"><span class="help-icon" aria-hidden="true">?</span><span class="sidebar-help-copy"><strong>Need a hand?</strong><small>Guides and quick help</small></span><span class="help-arrow" aria-hidden="true">&gt;</span></button>
+    </div>
+</aside>
+<div class="account-menu-layer" data-account-menu data-profile-photo-key="datahive.profile.photo.<c:out value='${currentUser.id}'/>" hidden>
+    <button class="account-menu-scrim" type="button" data-account-menu-close aria-label="Close account menu"></button>
+    <section class="account-menu-panel" id="account-menu-panel" role="dialog" aria-modal="true" aria-labelledby="account-menu-title" tabindex="-1">
+        <div class="account-menu-current">
+            <a class="account-menu-profile-link" href="${pageContext.request.contextPath}/profile#profile-details" aria-label="Open your profile">
+                <span class="account-menu-avatar"><span data-profile-initials><c:out value="${initials}"/></span><img class="profile-photo-image" data-profile-photo alt="" hidden></span>
+                <span class="account-menu-identity"><strong id="account-menu-title"><c:out value="${currentUser.fullName}"/></strong><small><c:out value="${currentUser.email}"/></small></span>
+            </a>
+            <button class="account-menu-close" type="button" data-account-menu-close aria-label="Close account menu"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m5 5 10 10M15 5 5 15"/></svg></button>
+        </div>
+        <div class="account-menu-workspace"><span class="account-menu-workspace-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M3 8.5 10 3l7 5.5V17H3z"/><path d="M7 17v-5h6v5"/></svg></span><span><strong>Research lab</strong><small>Personal workspace | <c:out value="${roleLabel}"/></small></span></div>
+        <div class="account-menu-divider"></div>
+        <nav class="account-menu-options" aria-label="Workspace settings">
+            <a class="account-menu-item" href="${pageContext.request.contextPath}/profile#profile-photo"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3"/><path d="M10 2.8v1.5M10 15.7v1.5M17.2 10h-1.5M4.3 10H2.8m12.3-5.1-1.1 1.1M6 14l-1.1 1.1m10.2 0L14 14M6 6 4.9 4.9"/></svg><span>Settings</span></a>
+        </nav>
+        <div class="account-menu-divider"></div>
+        <nav class="account-menu-options" aria-label="Workspace tools">
+            <c:if test="${isAdmin}"><a class="account-menu-item" href="${pageContext.request.contextPath}/admin?tab=usage"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 16.5h14M4.5 13.5l3.2-3.2 2.5 2 5.3-6"/><path d="M12.5 6.3h3v3"/></svg><span>Usage reports</span></a></c:if>
+            <a class="account-menu-item" href="https://github.com/Preet-Soam/datahive-ai-research-platform#readme" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="7"/><path d="M7.5 7.5a2.5 2.5 0 0 1 5 0c0 1.8-2.5 2-2.5 4M10 14.5v.1"/></svg><span>Project guide</span><svg class="account-menu-external" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M11 3h6v6M17 3l-8 8"/><path d="M15 11v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></a>
+        </nav>
+        <div class="account-menu-divider"></div>
+        <form class="account-menu-signout-form" method="post" action="${pageContext.request.contextPath}/logout"><input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>"/><button class="account-menu-signout" type="submit"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M8 3.5H5a1.5 1.5 0 0 0-1.5 1.5v10A1.5 1.5 0 0 0 5 16.5h3"/><path d="M10 6.5 13.5 10 10 13.5M13 10H7"/></svg><span>Sign out</span></button></form>
+    </section>
+</div>
+<div class="utility-layer help-layer" data-help hidden>
+    <button class="utility-scrim" type="button" data-help-close aria-label="Close help"></button>
+    <section class="utility-panel help-panel" id="help-panel" role="dialog" aria-modal="true" aria-labelledby="help-title" tabindex="-1">
+        <header class="utility-header"><span class="utility-heading-mark help-heading-mark" aria-hidden="true">?</span><div><p class="eyebrow">DATAHIVE SUPPORT</p><h2 id="help-title">Need a hand?</h2></div><button class="utility-close" type="button" data-help-close aria-label="Close help"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m5 5 10 10M15 5 5 15"/></svg></button></header>
+        <div class="help-page" data-help-page="1" tabindex="-1">
+            <p class="utility-intro">Choose a feature for a quick jump, or follow the guided example to set up a complete research workflow.</p>
+            <nav class="help-links" aria-label="Quick help">
+                <a class="help-link" href="${pageContext.request.contextPath}/projects"><span class="help-link-icon">01</span><span><strong>Set up a project</strong><small>Create a research workspace and choose its team.</small></span><b aria-hidden="true">&gt;</b></a>
+                <a class="help-link" href="${pageContext.request.contextPath}/datasets"><span class="help-link-icon help-link-mint">02</span><span><strong>Add a dataset</strong><small>Upload a CSV and connect it to a project.</small></span><b aria-hidden="true">&gt;</b></a>
+                <a class="help-link" href="${pageContext.request.contextPath}/experiments"><span class="help-link-icon help-link-violet">03</span><span><strong>Track an experiment</strong><small>Save model settings, results, and training runs.</small></span><b aria-hidden="true">&gt;</b></a>
+                <a class="help-link" href="${pageContext.request.contextPath}/collaboration"><span class="help-link-icon help-link-gold">04</span><span><strong>Work with your team</strong><small>Review project members and collaboration access.</small></span><b aria-hidden="true">&gt;</b></a>
+            </nav>
+            <a class="help-guide-link" href="https://github.com/Preet-Soam/datahive-ai-research-platform#readme" target="_blank" rel="noopener noreferrer"><span>Read the full project guide</span><b aria-hidden="true">&gt;</b></a>
+            <div class="help-pagination"><span class="help-page-count"><b>1</b> / 2</span><button class="help-next-button" type="button" data-help-next>Next: setup example <b aria-hidden="true">&gt;</b></button></div>
+        </div>
+        <div class="help-page help-guide-page" data-help-page="2" aria-label="Guided setup example" tabindex="-1" hidden>
+            <p class="utility-intro">Follow this example from project creation through model training. Each button opens the matching feature.</p>
+            <div class="help-example"><span class="eyebrow">SAMPLE RESEARCH WORKFLOW</span><strong>Customer churn study</strong><small>Project &gt; <code>churn.csv</code> &gt; target column <code>churned</code></small></div>
+            <ol class="help-steps">
+                <li><span class="help-step-number">01</span><div><strong>Create the project</strong><p>Name it <code>Customer churn study</code> and add a short research question.</p></div><a href="${pageContext.request.contextPath}/projects?open=1" aria-label="Open project setup">Open</a></li>
+                <li><span class="help-step-number help-link-mint">02</span><div><strong>Upload the CSV</strong><p>Choose <code>churn.csv</code>, select the project, and upload to generate its profile.</p></div><a href="${pageContext.request.contextPath}/datasets" aria-label="Open dataset upload">Open</a></li>
+                <li><span class="help-step-number help-link-violet">03</span><div><strong>Start a baseline run</strong><p>Select the CSV, name the run <code>Churn baseline v1</code>, and enter <code>churned</code> as the binary target.</p></div><a href="${pageContext.request.contextPath}/experiments" aria-label="Open experiments">Open</a></li>
+                <li><span class="help-step-number help-link-gold">04</span><div><strong>Share the project</strong><p>Add a researcher so they can access the project's datasets and runs.</p></div><a href="${pageContext.request.contextPath}/collaboration" aria-label="Open collaboration">Open</a></li>
+            </ol>
+            <div class="help-pagination"><button class="help-back-button" type="button" data-help-back>&lt; Back</button><span class="help-page-count"><b>2</b> / 2</span><a class="help-next-button" href="${pageContext.request.contextPath}/projects?open=1">Start with Projects <b aria-hidden="true">&gt;</b></a></div>
+        </div>
+    </section>
+</div>
+<div class="utility-layer notification-layer" data-notifications hidden data-endpoint="${pageContext.request.contextPath}/app" data-storage-key="datahive.notifications.read.<c:out value='${currentUser.id}'/>">
+    <button class="utility-scrim" type="button" data-notifications-close aria-label="Close notifications"></button>
+    <section class="utility-panel notification-panel" id="notification-panel" role="dialog" aria-modal="true" aria-labelledby="notification-title" tabindex="-1">
+        <header class="utility-header"><span class="utility-heading-mark notification-heading-mark" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M15.5 8a5.5 5.5 0 0 0-11 0c0 6-2 6-2 7.5h15C17.5 14 15.5 14 15.5 8ZM8 18h4"/></svg></span><div><p class="eyebrow">YOUR WORKSPACE</p><h2 id="notification-title">Notifications <span data-notification-total></span></h2></div><button class="utility-close" type="button" data-notifications-close aria-label="Close notifications"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m5 5 10 10M15 5 5 15"/></svg></button></header>
+        <div class="notification-toolbar"><span>Recent project activity</span><button type="button" data-mark-notifications-read>Mark all read</button></div>
+        <div class="notification-content" data-notification-content aria-live="polite"><div class="notification-loading"><span class="notification-spinner" aria-hidden="true"></span>Loading activity...</div></div>
+        <footer class="notification-footer"><span>Updates from projects you can access</span><a href="${pageContext.request.contextPath}/app">View overview <b aria-hidden="true">&gt;</b></a></footer>
+    </section>
+</div>
