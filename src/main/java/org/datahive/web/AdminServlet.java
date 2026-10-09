@@ -31,6 +31,10 @@ public final class AdminServlet extends HttpServlet {
         if (!ListTabs.isKnown(tab)) tab = "overview";
         int usageMonthsToShow = parseUsageMonths(request.getParameter("months"));
         try {
+            if ("usage".equals(tab) && "csv".equals(request.getParameter("export"))) {
+                writeUsageCsv(response, usageMonthsToShow);
+                return;
+            }
             request.setAttribute("activePage", "admin");
             request.setAttribute("activeTab", tab);
             request.setAttribute("initials", initials(user.getFullName()));
@@ -207,6 +211,22 @@ public final class AdminServlet extends HttpServlet {
             int months = Integer.parseInt(value);
             return months == 3 || months == 6 || months == 12 ? months : 6;
         } catch (RuntimeException exception) { return 6; }
+    }
+
+    private void writeUsageCsv(HttpServletResponse response, int months)
+            throws SQLException, IOException {
+        List<org.datahive.model.UsageBucket> buckets = adminDao.usageByMonth(months);
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("text/csv;charset=UTF-8");
+        response.setHeader("Content-Disposition",
+                "attachment; filename=\"datahive-usage-" + months + "-months.csv\"");
+
+        var writer = response.getWriter();
+        writer.println("month,compute_seconds,storage_bytes");
+        for (org.datahive.model.UsageBucket bucket : buckets) {
+            writer.printf(Locale.ROOT, "%s,%.3f,%.0f%n", bucket.getLabel(),
+                    bucket.getComputeSeconds(), bucket.getStorageBytes());
+        }
     }
 
     private static String initials(String name) {
