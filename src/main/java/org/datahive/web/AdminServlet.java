@@ -15,6 +15,7 @@ import org.datahive.service.ActivityLogger;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -33,11 +34,13 @@ public final class AdminServlet extends HttpServlet {
 
         String tab = request.getParameter("tab");
         if (!ListTabs.isKnown(tab)) tab = "overview";
-        int usageMonthsToShow = parseUsageMonths(request.getParameter("months"));
+        LocalDate today = LocalDate.now();
+        LocalDate defaultFrom = today.minusMonths(5).withDayOfMonth(1);
+        UsageRange usageRange = parseUsageRange(request, defaultFrom, today);
 
         try {
             if ("usage".equals(tab) && "csv".equals(request.getParameter("export"))) {
-                writeUsageCsv(response, usageMonthsToShow);
+                writeUsageCsv(response, usageRange.from(), usageRange.to());
                 return;
             }
 
@@ -48,13 +51,16 @@ public final class AdminServlet extends HttpServlet {
             request.setAttribute("resources", adminDao.listResources());
             request.setAttribute("projects", projectDao.findVisibleTo(user));
             request.setAttribute("researchers", projectDao.listActiveResearchers());
-            request.setAttribute("usageTotals", adminDao.usageTotals());
+            request.setAttribute("usageTotals", "usage".equals(tab)
+                    ? adminDao.usageTotals(usageRange.from(), usageRange.to())
+                    : adminDao.usageTotals());
             if ("activity".equals(tab)) {
                 request.setAttribute("adminActivities", activityLogDao.latest(100));
             }
 
-            List<org.datahive.model.UsageBucket> rawUsage =
-                    adminDao.usageByMonth(usageMonthsToShow);
+            List<org.datahive.model.UsageBucket> rawUsage = "usage".equals(tab)
+                    ? adminDao.usageByMonth(usageRange.from(), usageRange.to())
+                    : adminDao.usageByMonth(6);
             double maxCompute = rawUsage.stream()
                     .mapToDouble(org.datahive.model.UsageBucket::getComputeSeconds)
                     .max().orElse(0);
@@ -74,7 +80,10 @@ public final class AdminServlet extends HttpServlet {
             }
 
             request.setAttribute("usageMonths", usageMonths);
-            request.setAttribute("usageMonthWindow", usageMonthsToShow);
+            request.setAttribute("usageStartDate", usageRange.from().toString());
+            request.setAttribute("usageEndDate", usageRange.to().toString());
+            request.setAttribute("usageDateError", usageRange.error());
+            request.setAttribute("usageToday", today.toString());
             request.setAttribute("activeUserCount", adminDao.countActiveUsers());
             request.setAttribute("activeResourceCount", adminDao.countActiveResources());
             request.getRequestDispatcher("/WEB-INF/views/admin.jsp")
@@ -301,33 +310,52 @@ public final class AdminServlet extends HttpServlet {
         return ListTabs.isKnown(tab) ? tab : "overview";
     }
 
-    private static int parseUsageMonths(String value) {
+    private static UsageRange parseUsageRange(HttpServletRequest request,
+                                              LocalDate defaultFrom,
+                                              LocalDate today) {
+        String fromValue = clean(request.getParameter("from"));
+        String toValue = clean(request.getParameter("to"));
+        if (fromValue.isEmpty() && toValue.isEmpty()) {
+            return new UsageRange(defaultFrom, today, null);
+        }
         try {
-            int months = Integer.parseInt(value);
-            return months == 3 || months == 6 || months == 12 ? months : 6;
+            LocalDate from = fromValue.isEmpty() ? defaultFrom : LocalDate.parse(fromValue);
+            LocalDate to = toValue.isEmpty() ? today : LocalDate.parse(toValue);
+            if (from.isAfter(to)) {
+                return new UsageRange(defaultFrom, today,
+                        "Start date must be on or before the end date.");
+            }
+            if (to.isAfter(today)) {
+                return new UsageRange(defaultFrom, today,
+                        "End date cannot be in the future.");
+            }
+            return new UsageRange(from, to, null);
         } catch (RuntimeException exception) {
-            return 6;
+            return new UsageRange(defaultFrom, today,
+                    "Enter valid start and end dates.");
         }
     }
 
-    private void writeUsageCsv(HttpServletResponse response, int months)
+    private void writeUsageCsv(HttpServletResponse response, LocalDate from, LocalDate to)
             throws SQLException, IOException {
         List<org.datahive.model.UsageBucket> buckets =
-                adminDao.usageByMonth(months);
+                adminDao.usageByMonth(from, to);
 
         response.setCharacterEncoding("UTF-8");
         response.setContentType("text/csv;charset=UTF-8");
         response.setHeader("Content-Disposition",
-                "attachment; filename=\"datahive-usage-" + months
-                        + "-months.csv\"");
+                "attachment; filename=\"datahive-usage-" + from
+                        + "-to-" + to + ".csv\"");
 
         var writer = response.getWriter();
-        writer.println("month,compute_seconds,storage_bytes");
+        writer.println("date_range_start,date_range_end,month,compute_seconds,storage_bytes");
         for (org.datahive.model.UsageBucket bucket : buckets) {
-            writer.printf(Locale.ROOT, "%s,%.3f,%.0f%n", bucket.getLabel(),
+            writer.printf(Locale.ROOT, "%s,%s,%s,%.3f,%.0f%n", from, to, bucket.getLabel(),
                     bucket.getComputeSeconds(), bucket.getStorageBytes());
         }
     }
+
+    private record UsageRange(LocalDate from, LocalDate to, String error) { }
 
     private static String initials(String name) {
         if (name == null || name.isBlank()) return "DH";

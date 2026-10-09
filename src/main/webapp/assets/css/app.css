@@ -388,7 +388,7 @@ a.nav-link:hover { color: #fff; background: rgba(255,255,255,.07); }
 .collaboration-project-bar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
 .usage-filter { display: flex; align-items: center; gap: 8px; }
 .usage-filter label { color: #8190a4; font-size: 8px; font-weight: 600; }
-.usage-filter select { min-height: 33px; padding: 6px 9px; border: 1px solid #e1e7f0; border-radius: 7px; color: #52627c; background: #fff; font: 500 8px 'DM Sans', sans-serif; }
+.usage-filter select, .usage-filter input[type="date"] { min-height: 33px; padding: 6px 9px; border: 1px solid #e1e7f0; border-radius: 7px; color: #52627c; background: #fff; font: 500 8px 'DM Sans', sans-serif; }
 .usage-breakdown-panel { margin-top: 14px; padding: 0; overflow: hidden; }
 .collaboration-project-bar form { display: flex; align-items: center; gap: 9px; }
 .collaboration-project-bar label { color: #7a879b; font-size: 9px; font-weight: 600; }
@@ -697,7 +697,7 @@ body { font-size: 14px; line-height: 1.5; }
 .collaboration-project-bar form { gap: 11px; }
 .collaboration-project-bar label, .usage-filter label { font-size: 10px; }
 .collaboration-project-bar select { min-height: 42px; padding: 9px 12px; border-radius: 9px; font-size: 11px; }
-.usage-filter select { min-height: 39px; padding: 7px 11px; border-radius: 9px; font-size: 10px; }
+.usage-filter select, .usage-filter input[type="date"] { min-height: 39px; padding: 7px 11px; border-radius: 9px; font-size: 10px; }
 .team-project-description { padding: 15px 23px; font-size: 11px; }
 .team-member-list { padding: 0 23px; }
 .team-member { min-height: 72px; gap: 12px; }
@@ -1371,7 +1371,8 @@ body { font-size: 14px; line-height: 1.5; }
     .admin-section-header { align-items: flex-start; flex-direction: column; gap: 13px; }
     .admin-section-header h2 { font-size: 19px; }
     .admin-section-header > .usage-filter { width: 100%; align-items: center; flex-direction: row; }
-    .admin-section-header > .usage-filter select { flex: 1; }
+    .admin-section-header > .usage-filter { flex-wrap: wrap; }
+    .admin-section-header > .usage-filter input[type="date"] { min-width: 0; flex: 1 1 120px; }
     .admin-overview-grid { grid-template-columns: minmax(0, 1fr); }
     .admin-form-grid { grid-template-columns: minmax(0, 1fr); }
     .admin-form-actions { grid-column: auto; justify-content: stretch; }

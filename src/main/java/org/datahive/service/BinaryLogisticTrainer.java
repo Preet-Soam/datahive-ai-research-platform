@@ -10,6 +10,75 @@ import java.util.Set;
 
 /** A small, deterministic CPU baseline for binary classification on numeric CSV features. */
 public final class BinaryLogisticTrainer {
+    /** Checks dataset readiness without spending time training a model. */
+    public void validate(CsvProfiler.Table table, String targetName,
+                         List<String> featureNames) throws IOException {
+        int targetIndex = table.headers().indexOf(targetName);
+        if (targetIndex < 0) throw new IOException("The target column was not found in the CSV header");
+        if (featureNames == null || featureNames.isEmpty()) {
+            throw new IOException("Choose at least one numeric feature column");
+        }
+        List<Integer> featureIndexes = new ArrayList<>();
+        Set<Integer> uniqueIndexes = new HashSet<>();
+        for (String feature : featureNames) {
+            int index = table.headers().indexOf(feature);
+            if (index < 0 || index == targetIndex || !uniqueIndexes.add(index)) {
+                throw new IOException("Choose distinct feature columns that differ from the target");
+            }
+            featureIndexes.add(index);
+        }
+
+        Set<String> labels = new HashSet<>();
+        for (List<String> row : table.rows()) {
+            String label = row.get(targetIndex).trim();
+            if (!label.isEmpty()) labels.add(label);
+        }
+        if (labels.size() != 2) {
+            throw new IOException("The target column must contain exactly two non-empty classes");
+        }
+
+        long[] classRows = new long[2];
+        long completeRows = 0;
+        long[] numericValues = new long[featureIndexes.size()];
+        List<String> orderedLabels = labels.stream().sorted(Comparator.naturalOrder()).toList();
+        for (List<String> row : table.rows()) {
+            String label = row.get(targetIndex).trim();
+            if (label.isEmpty()) continue;
+            boolean valid = true;
+            for (int j = 0; j < featureIndexes.size(); j++) {
+                String raw = row.get(featureIndexes.get(j)).trim();
+                if (raw.isEmpty()) continue;
+                try {
+                    double value = Double.parseDouble(raw);
+                    if (!Double.isFinite(value)) {
+                        valid = false;
+                    } else {
+                        numericValues[j]++;
+                    }
+                } catch (NumberFormatException exception) {
+                    throw new IOException("Feature '" + featureNames.get(j)
+                            + "' contains a non-numeric value");
+                }
+            }
+            if (valid) {
+                completeRows++;
+                classRows[orderedLabels.indexOf(label)]++;
+            }
+        }
+        for (int j = 0; j < numericValues.length; j++) {
+            if (numericValues[j] == 0) {
+                throw new IOException("Feature '" + featureNames.get(j)
+                        + "' has no usable numeric values");
+            }
+        }
+        if (completeRows < 10) {
+            throw new IOException("At least 10 complete labeled rows are needed for a train/test split");
+        }
+        if (classRows[0] < 3 || classRows[1] < 3) {
+            throw new IOException("Each target class needs at least three complete rows");
+        }
+    }
+
     public Result train(CsvProfiler.Table table, String targetName, List<String> featureNames,
                         int seed, int epochs, double learningRate, ProgressListener progress) throws IOException {
         if (epochs < 20 || epochs > 500 || !Double.isFinite(learningRate) || learningRate < 0.005 || learningRate > 0.5) {

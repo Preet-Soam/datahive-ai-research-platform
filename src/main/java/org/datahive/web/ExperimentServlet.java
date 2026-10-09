@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpSession;
 import org.datahive.dao.DatasetDao;
 import org.datahive.dao.ExperimentDao;
 import org.datahive.dao.ProjectDao;
+import org.datahive.config.AppStorage;
 import org.datahive.model.ColumnProfile;
 import org.datahive.model.Dataset;
 import org.datahive.model.Project;
@@ -16,8 +17,11 @@ import org.datahive.model.TrainingExperiment;
 import org.datahive.model.User;
 import org.datahive.service.TrainingService;
 import org.datahive.service.ActivityLogger;
+import org.datahive.service.BinaryLogisticTrainer;
+import org.datahive.service.CsvProfiler;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Locale;
@@ -36,6 +40,14 @@ public final class ExperimentServlet extends HttpServlet {
             throws ServletException, IOException {
         User user = (User) request.getAttribute("currentUser");
         try {
+            HttpSession session = request.getSession(false);
+            if (session != null) {
+                Object preflightError = session.getAttribute("trainingPreflightError");
+                if (preflightError != null) {
+                    request.setAttribute("trainingPreflightError", preflightError);
+                    session.removeAttribute("trainingPreflightError");
+                }
+            }
             request.setAttribute("datasets", datasetDao.findVisibleTo(user));
             List<TrainingExperiment> experiments = experimentDao.listVisible(user);
             request.setAttribute("experiments", experiments);
@@ -106,6 +118,19 @@ public final class ExperimentServlet extends HttpServlet {
             }
             if (!targetExists || features.isEmpty()) {
                 response.sendRedirect(request.getContextPath() + "/experiments?error=features"); return;
+            }
+            Path uploadRoot = AppStorage.uploadDirectory();
+            Path datasetFile = uploadRoot.resolve(dataset.getStoredFilename()).normalize();
+            if (!datasetFile.startsWith(uploadRoot)) {
+                throw new IOException("The saved dataset path is invalid");
+            }
+            try {
+                CsvProfiler.Table table = new CsvProfiler().readTable(datasetFile);
+                new BinaryLogisticTrainer().validate(table, target, features);
+            } catch (IOException exception) {
+                request.getSession(true).setAttribute("trainingPreflightError", exception.getMessage());
+                response.sendRedirect(request.getContextPath() + "/experiments?error=trainingData");
+                return;
             }
             ExperimentDao.TrainingTicket ticket = experimentDao.createAndQueue(project.getId(), dataset.getId(),
                     name, target, features, epochs, learningRate, user.getId());

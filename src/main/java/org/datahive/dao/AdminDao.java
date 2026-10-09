@@ -11,6 +11,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Date;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -138,6 +140,22 @@ public final class AdminDao {
         }
     }
 
+    public UsageTotals usageTotals(LocalDate from, LocalDate to) throws SQLException {
+        String sql = "SELECT " +
+                "COALESCE(SUM(CASE WHEN usage_type = 'COMPUTE_SECONDS' THEN amount ELSE 0 END), 0) AS compute_seconds, " +
+                "COALESCE(SUM(CASE WHEN usage_type = 'STORAGE_BYTES' THEN amount ELSE 0 END), 0) AS storage_bytes " +
+                "FROM usage_records WHERE recorded_at >= ? AND recorded_at < ?";
+        try (Connection connection = Database.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setDate(1, Date.valueOf(from));
+            statement.setDate(2, Date.valueOf(to.plusDays(1)));
+            try (ResultSet result = statement.executeQuery()) {
+                result.next();
+                return new UsageTotals(result.getDouble("compute_seconds"), result.getDouble("storage_bytes"));
+            }
+        }
+    }
+
     private static long scalar(String sql) throws SQLException {
         try (Connection connection = Database.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql);
@@ -161,6 +179,27 @@ public final class AdminDao {
                 String label = result.getInt("usage_year") + "-" + String.format("%02d", result.getInt("usage_month"));
                 buckets.add(new UsageBucket(label, result.getDouble("compute_seconds"), result.getDouble("storage_bytes")));
             }
+            }
+        }
+        return buckets;
+    }
+
+    public List<UsageBucket> usageByMonth(LocalDate from, LocalDate to) throws SQLException {
+        String sql = "SELECT YEAR(recorded_at) AS usage_year, MONTH(recorded_at) AS usage_month, " +
+                "SUM(CASE WHEN usage_type = 'COMPUTE_SECONDS' THEN amount ELSE 0 END) AS compute_seconds, " +
+                "SUM(CASE WHEN usage_type = 'STORAGE_BYTES' THEN amount ELSE 0 END) AS storage_bytes " +
+                "FROM usage_records WHERE recorded_at >= ? AND recorded_at < ? " +
+                "GROUP BY YEAR(recorded_at), MONTH(recorded_at) ORDER BY usage_year, usage_month";
+        List<UsageBucket> buckets = new ArrayList<>();
+        try (Connection connection = Database.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setDate(1, Date.valueOf(from));
+            statement.setDate(2, Date.valueOf(to.plusDays(1)));
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    String label = result.getInt("usage_year") + "-" + String.format("%02d", result.getInt("usage_month"));
+                    buckets.add(new UsageBucket(label, result.getDouble("compute_seconds"), result.getDouble("storage_bytes")));
+                }
             }
         }
         return buckets;

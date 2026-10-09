@@ -22,6 +22,7 @@
             <c:if test="${param.error eq 'features'}"><div class="alert alert-error" role="alert">Choose a valid target column and at least one numeric input feature. The target must contain exactly two classes.</div></c:if>
             <c:if test="${param.error eq 'project'}"><div class="alert alert-error" role="alert">Training requires a dataset attached to an active project you can access.</div></c:if>
             <c:if test="${param.error eq 'queue'}"><div class="alert alert-error" role="alert">The training queue is busy. Try again after a run finishes.</div></c:if>
+            <c:if test="${param.error eq 'trainingData' and not empty trainingPreflightError}"><div class="alert alert-error" role="alert"><strong>This dataset is not ready for training:</strong> <c:out value="${trainingPreflightError}"/>. Update the CSV or adjust the target and features, then try again.</div></c:if>
 
             <section class="experiment-layout <c:if test='${empty selectedExperiment}'>experiment-layout-single</c:if>">
                 <article class="panel experiment-launch-panel">
