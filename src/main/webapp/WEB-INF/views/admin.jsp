@@ -1,35 +1,3 @@
-<%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" language="java" %>
-<%@ taglib prefix="c" uri="jakarta.tags.core" %>
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f5f7fb">
-    <title>Administration  |  DataHive</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/app.css?v=20261008-photo-menu4">
-</head>
-<body class="app-page">
-<div class="app-shell">
-    <%@ include file="fragments/sidebar.jspf" %>
-    <main class="main-content">
-        <header class="topbar"><button class="mobile-menu" type="button" data-menu-toggle aria-label="Toggle navigation"><span class="menu-glyph" aria-hidden="true"></span></button><div class="breadcrumbs"><span>Platform</span><span class="crumb-divider">/</span><strong>Administration</strong></div><div class="topbar-actions"><span class="environment-pill"><span></span> LOCAL WORKSPACE</span><button class="icon-button notification-trigger" type="button" data-notification-toggle aria-expanded="false" aria-controls="notification-panel" aria-label="Notifications" title="Notifications"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 8a5.5 5.5 0 0 0-11 0c0 6-2 6-2 7.5h15C17.5 14 15.5 14 15.5 8ZM8 18h4"/></svg><span class="notification-badge" data-notification-badge hidden></span></button><button type="button" class="top-avatar account-menu-trigger" data-account-menu-toggle aria-expanded="false" aria-controls="account-menu-panel" aria-label="Open account menu" title="Account menu"><span data-profile-initials><c:out value="${initials}"/></span><img class="profile-photo-image" data-profile-photo alt="" hidden></button></div></header>
-        <div class="page-wrap">
-            <section class="welcome-row admin-welcome"><div><p class="eyebrow">PLATFORM CONTROL</p><h1>Administration</h1><p class="page-intro">Manage access, research resources, projects, and recorded usage.</p></div><span class="admin-scope-pill">ADMINISTRATOR</span></section>
-
-            <c:if test="${param.error eq 'validation'}"><div class="alert alert-error" role="alert">Check the submitted fields. Names, email addresses, roles, and capacities must be valid.</div></c:if>
-            <c:if test="${not empty param.notice}"><div class="alert alert-success" role="status">Your administration changes were saved.</div></c:if>
-
-            <nav class="admin-tabs" aria-label="Administration sections">
-                <a class="<c:if test='${activeTab eq "overview"}'>is-current</c:if>" href="${pageContext.request.contextPath}/admin?tab=overview">Overview</a>
-                <a class="<c:if test='${activeTab eq "users"}'>is-current</c:if>" href="${pageContext.request.contextPath}/admin?tab=users">Users <span><c:out value="${users.size()}"/></span></a>
-                <a class="<c:if test='${activeTab eq "resources"}'>is-current</c:if>" href="${pageContext.request.contextPath}/admin?tab=resources">Resources <span><c:out value="${resources.size()}"/></span></a>
-                <a class="<c:if test='${activeTab eq "projects"}'>is-current</c:if>" href="${pageContext.request.contextPath}/admin?tab=projects">Projects <span><c:out value="${projects.size()}"/></span></a>
-                <a class="<c:if test='${activeTab eq "usage"}'>is-current</c:if>" href="${pageContext.request.contextPath}/admin?tab=usage">Usage reports</a>
-            </nav>
-
-            <c:choose>
-                <c:when test="${activeTab eq 'users'}">
                     <section class="admin-section-header"><div><p class="eyebrow">ACCESS CONTROL</p><h2>User management</h2><p>Create accounts, set roles, and deactivate access when needed.</p></div></section>
                     <details class="admin-create-panel" open>
                         <summary><span class="create-summary-icon">+</span><span><strong>Create user</strong><small>Set the name, email, role, and initial password.</small></span></summary>
@@ -105,7 +73,7 @@
                     </section>
                 </c:when>
                 <c:when test="${activeTab eq 'usage'}">
-                    <section class="admin-section-header"><div><p class="eyebrow">RESOURCE ANALYTICS</p><h2>Usage reports</h2><p>Usage is derived from saved dataset uploads and completed training runs.</p></div><form class="usage-filter" method="get" action="${pageContext.request.contextPath}/admin"><input type="hidden" name="tab" value="usage"/><label for="usage-window">Reporting window</label><select id="usage-window" name="months" onchange="this.form.submit()"><option value="3" <c:if test="${usageMonthWindow eq 3}">selected</c:if>>Last 3 months</option><option value="6" <c:if test="${usageMonthWindow eq 6}">selected</c:if>>Last 6 months</option><option value="12" <c:if test="${usageMonthWindow eq 12}">selected</c:if>>Last 12 months</option></select><noscript><button class="button button-secondary" type="submit">Update</button></noscript></form></section>
+                    <section class="admin-section-header"><div><p class="eyebrow">RESOURCE ANALYTICS</p><h2>Usage reports</h2><p>Usage is derived from saved dataset uploads and completed training runs.</p></div><form class="usage-filter" method="get" action="${pageContext.request.contextPath}/admin"><input type="hidden" name="tab" value="usage"/><label for="usage-window">Reporting window</label><select id="usage-window" name="months" onchange="this.form.submit()"><option value="3" <c:if test="${usageMonthWindow eq 3}">selected</c:if>>Last 3 months</option><option value="6" <c:if test="${usageMonthWindow eq 6}">selected</c:if>>Last 6 months</option><option value="12" <c:if test="${usageMonthWindow eq 12}">selected</c:if>>Last 12 months</option></select><noscript><button class="button button-secondary" type="submit">Update</button></noscript></form><a class="button button-secondary" href="${pageContext.request.contextPath}/admin?tab=usage&amp;months=${usageMonthWindow}&amp;export=csv">Download CSV</a></section>
                     <section class="metric-grid admin-usage-cards">
                         <article class="metric-card"><div class="metric-card-top"><span class="metric-label">Recorded compute</span><span class="metric-icon">C</span></div><div class="metric-value"><c:out value="${usageTotals.computeLabel}"/></div><div class="metric-foot"><span class="metric-foot-dot"></span><span>Training run duration</span></div></article>
                         <article class="metric-card metric-accent-2"><div class="metric-card-top"><span class="metric-label">CSV upload volume</span><span class="metric-icon">S</span></div><div class="metric-value"><c:out value="${usageTotals.storageLabel}"/></div><div class="metric-foot"><span class="metric-foot-dot"></span><span>Total bytes uploaded</span></div></article>
