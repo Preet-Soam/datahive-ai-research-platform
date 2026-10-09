@@ -16,13 +16,11 @@
         <header class="topbar"><button class="mobile-menu" type="button" data-menu-toggle aria-label="Toggle navigation"><span class="menu-glyph" aria-hidden="true"></span></button><div class="breadcrumbs"><span>Workspace</span><span class="crumb-divider">/</span><strong>Experiments</strong></div><div class="topbar-actions"><span class="environment-pill"><span></span> LOCAL WORKSPACE</span><button class="icon-button notification-trigger" type="button" data-notification-toggle aria-expanded="false" aria-controls="notification-panel" aria-label="Notifications" title="Notifications"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 8a5.5 5.5 0 0 0-11 0c0 6-2 6-2 7.5h15C17.5 14 15.5 14 15.5 8ZM8 18h4"/></svg><span class="notification-badge" data-notification-badge hidden></span></button><button type="button" class="top-avatar account-menu-trigger" data-account-menu-toggle aria-expanded="false" aria-controls="account-menu-panel" aria-label="Open account menu" title="Account menu"><span data-profile-initials><c:out value="${initials}"/></span><img class="profile-photo-image" data-profile-photo alt="" hidden></button></div></header>
         <div class="page-wrap">
             <section class="welcome-row"><div><p class="eyebrow">TRAIN  |  MEASURE  |  REPEAT</p><h1>Experiments</h1><p class="page-intro">Train a reproducible baseline on a project dataset, then review its held-out metrics and run log.</p></div><span class="model-chip">CPU  |  BINARY CLASSIFICATION</span></section>
-
             <c:if test="${param.notice eq 'queued'}"><div class="alert alert-success" role="status">The training run was added to the local queue. Its status and results will update here.</div></c:if>
             <c:if test="${param.error eq 'validation'}"><div class="alert alert-error" role="alert">Enter a valid experiment name, choose a dataset, and provide the exact CSV target header.</div></c:if>
             <c:if test="${param.error eq 'features'}"><div class="alert alert-error" role="alert">That target header was not found, or the dataset has no other numeric feature columns.</div></c:if>
             <c:if test="${param.error eq 'project'}"><div class="alert alert-error" role="alert">Training requires a dataset attached to an active project you can access.</div></c:if>
             <c:if test="${param.error eq 'queue'}"><div class="alert alert-error" role="alert">The training queue is busy. Try again after a run finishes.</div></c:if>
-
             <section class="experiment-layout <c:if test='${empty selectedExperiment}'>experiment-layout-single</c:if>">
                 <article class="panel experiment-launch-panel">
                     <div class="panel-heading"><div><p class="eyebrow">NEW RUN</p><h2>Binary logistic regression</h2></div><span class="experiment-model-icon">ML(x)</span></div>
@@ -44,20 +42,29 @@
                     </form>
                     <c:if test="${empty datasets}"><p class="experiment-empty-note">Upload a CSV dataset first to enable training.</p></c:if>
                 </article>
-
                 <c:if test="${not empty selectedExperiment}">
                     <article class="panel experiment-detail-panel">
                         <div class="panel-heading"><div><p class="eyebrow">RUN DETAIL  |  #<c:out value="${selectedExperiment.runId}"/></p><h2><c:out value="${selectedExperiment.name}"/></h2></div><a class="back-link" href="${pageContext.request.contextPath}/experiments">Close detail</a></div>
                         <div class="experiment-meta"><span><c:out value="${selectedExperiment.projectTitle}"/></span><span><c:out value="${selectedExperiment.datasetName}"/></span><span>Target: <strong><c:out value="${selectedExperiment.targetColumn}"/></strong></span><span><c:out value="${selectedExperiment.epochs}"/> epochs</span><span>Learning rate <c:out value="${selectedExperiment.learningRateLabel}"/></span></div>
                         <div class="run-progress-row"><span class="status-badge status-<c:out value='${selectedExperiment.statusLabel}'/>"><span></span><c:out value="${selectedExperiment.statusLabel}"/></span><strong><c:out value="${selectedExperiment.progress}"/>%</strong></div>
                         <div class="progress-track"><span style="width:<c:out value='${selectedExperiment.progress}'/>%"></span></div>
+                        <c:if test="${selectedExperiment.status eq 'FAILED'}">
+                            <div class="alert alert-error" role="alert">
+                                <strong>Training failed.</strong>
+                                <c:forEach var="log" items="${selectedExperiment.logs}">
+                                    <c:if test="${log.levelLabel eq 'error'}">
+                                        <p><c:out value="${log.message}"/></p>
+                                    </c:if>
+                                </c:forEach>
+                                <p>Correct the issue and start a new run.</p>
+                            </div>
+                        </c:if>
                         <c:if test="${selectedExperiment.status eq 'COMPLETED'}"><div class="run-metric-grid"><div><strong><c:out value="${selectedExperiment.accuracyPercent}"/></strong><span>Accuracy</span></div><div><strong><c:out value="${selectedExperiment.f1Percent}"/></strong><span>F1 score</span></div><div><strong><c:out value="${selectedExperiment.precisionPercent}"/></strong><span>Precision</span></div><div><strong><c:out value="${selectedExperiment.recallPercent}"/></strong><span>Recall</span></div></div></c:if>
                         <div class="run-log-heading"><h3>Run log</h3><span>Recorded status and progress</span></div>
                         <ol class="run-log-list"><c:forEach var="log" items="${selectedExperiment.logs}"><li class="log-${log.levelLabel}"><time><c:out value="${log.createdAt}"/></time><span><c:out value="${log.message}"/></span></li></c:forEach></ol>
                     </article>
                 </c:if>
             </section>
-
             <section class="panel project-list-panel experiment-list-panel">
                 <div class="panel-heading project-list-heading"><div><p class="eyebrow">EXPERIMENT TRACKING</p><h2>Training runs</h2></div><span class="quiet-label"><c:out value="${experiments.size()}"/> saved</span></div>
                 <c:choose><c:when test="${empty experiments}"><div class="project-empty"><span class="empty-mark">ML</span><h3>No experiments yet</h3><p>Start a baseline run to create a persistent experiment, status history, metrics, and run log.</p></div></c:when><c:otherwise>
