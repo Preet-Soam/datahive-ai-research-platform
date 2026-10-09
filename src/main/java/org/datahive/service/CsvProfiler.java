@@ -42,8 +42,8 @@ public final class CsvProfiler {
             long rows = 0;
             List<String> record;
             while ((record = readRecord(reader)) != null) {
-                if (record.size() > columns.size()) {
-                    throw new IOException("A CSV row has more values than the header");
+                if (record.size() != columns.size()) {
+                    throw new IOException("Every data row must have the same number of values as the header");
                 }
                 rows++;
                 if (rows > MAX_ROWS) {
