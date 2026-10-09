@@ -28,9 +28,10 @@ public final class ExperimentDao {
     }
 
     public TrainingTicket createAndQueue(long projectId, long datasetId, String name, String targetColumn,
-                                         List<String> features, int epochs, double learningRate, long userId) throws SQLException {
+                                         String modelType, List<String> features,
+                                         int epochs, double learningRate, long userId) throws SQLException {
         String sql = "INSERT INTO experiments (project_id, dataset_id, name, model_name, target_column, epochs, " +
-                "learning_rate, parameters_json, created_by) VALUES (?, ?, ?, 'Binary logistic regression', ?, ?, ?, ?, ?)";
+                "learning_rate, parameters_json, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection connection = Database.getConnection()) {
             connection.setAutoCommit(false);
             try {
@@ -39,11 +40,12 @@ public final class ExperimentDao {
                     statement.setLong(1, projectId);
                     statement.setLong(2, datasetId);
                     statement.setString(3, name);
-                    statement.setString(4, targetColumn);
-                    statement.setInt(5, epochs);
-                    statement.setDouble(6, learningRate);
-                    statement.setString(7, parametersJson(features, epochs, learningRate));
-                    statement.setLong(8, userId);
+                    statement.setString(4, org.datahive.service.ModelTrainer.displayName(modelType));
+                    statement.setString(5, targetColumn);
+                    statement.setInt(6, epochs);
+                    statement.setDouble(7, learningRate);
+                    statement.setString(8, parametersJson(modelType, features, epochs, learningRate));
+                    statement.setLong(9, userId);
                     statement.executeUpdate();
                     try (ResultSet keys = statement.getGeneratedKeys()) {
                         if (!keys.next()) throw new SQLException("Experiment ID was not returned");
@@ -61,9 +63,12 @@ public final class ExperimentDao {
                         runId = keys.getLong(1);
                     }
                 }
-                addLog(connection, runId, "INFO", "Queued binary logistic regression. Target: '" + safeLog(targetColumn) +
+                addLog(connection, runId, "INFO", "Queued " + safeLog(org.datahive.service.ModelTrainer.displayName(modelType))
+                        + ". Target: '" + safeLog(targetColumn) +
                         "'; selected numeric features: " + safeLog(String.join(", ", features)) +
-                        "; epochs: " + epochs + "; learning rate: " + learningRate +
+                        (org.datahive.service.ModelTrainer.DECISION_TREE.equals(modelType)
+                                ? "; maximum depth: 6; split criterion: Gini impurity"
+                                : "; epochs: " + epochs + "; learning rate: " + learningRate) +
                         "; split: stratified 80/20; seed: 42.");
                 connection.commit();
                 return new TrainingTicket(experimentId, runId);
@@ -170,7 +175,7 @@ public final class ExperimentDao {
                     statement.executeBatch();
                 }
                 addLog(connection, runId, "INFO", "Holdout results: accuracy " + percent(accuracy) + ", F1 " + percent(f1) +
-                        ". Positive class: '" + safeLog(positiveClass) + "'. Train rows: " + trainRows + "; test rows: " + testRows + ".");
+                        ". Classification summary: '" + safeLog(positiveClass) + "'. Train rows: " + trainRows + "; test rows: " + testRows + ".");
                 try (PreparedStatement statement = connection.prepareStatement(
                         "INSERT INTO usage_records (resource_id, project_id, user_id, usage_type, amount) " +
                                 "VALUES ((SELECT MIN(id) FROM resources WHERE resource_type = 'COMPUTE' " +
@@ -250,8 +255,17 @@ public final class ExperimentDao {
     private static void addMetric(PreparedStatement statement, long runId, String name, double value) throws SQLException {
         statement.setLong(1, runId); statement.setString(2, name); statement.setDouble(3, value); statement.addBatch();
     }
-    private static String parametersJson(List<String> features, int epochs, double learningRate) {
-        StringBuilder json = new StringBuilder("{\"seed\":42,\"epochs\":" + epochs + ",\"learningRate\":" + learningRate + ",\"split\":\"80/20 stratified\",\"features\":[");
+    private static String parametersJson(String modelType, List<String> features,
+                                         int epochs, double learningRate) {
+        StringBuilder json = new StringBuilder("{\"model\":\"")
+                .append(modelType).append("\",\"seed\":42,\"split\":\"80/20 stratified\"");
+        if (org.datahive.service.ModelTrainer.DECISION_TREE.equals(modelType)) {
+            json.append(",\"maxDepth\":6,\"criterion\":\"gini\"");
+        } else {
+            json.append(",\"epochs\":").append(epochs)
+                    .append(",\"learningRate\":").append(learningRate);
+        }
+        json.append(",\"features\":[");
         for (int i = 0; i < features.size(); i++) {
             if (i > 0) json.append(',');
             json.append('"').append(features.get(i).replace("\\", "\\\\").replace("\"", "\\\"")).append('"');

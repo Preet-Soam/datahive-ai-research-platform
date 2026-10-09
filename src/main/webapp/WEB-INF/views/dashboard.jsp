@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/app.css?v=20261008-photo-menu4">
+    <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/app.css?v=20261009-research-dashboard2">
 </head>
 <body class="app-page">
 <div class="app-shell">
@@ -87,6 +87,62 @@
                     <div><p class="eyebrow">SIGNED IN AS</p><h2><c:out value="${roleLabel}"/></h2><p><c:choose><c:when test="${isAdmin}">Platform administration and research resources.</c:when><c:otherwise>Dataset management, model training, and collaboration.</c:otherwise></c:choose></p></div>
                 </article>
             </section>
+
+            <c:choose>
+                <c:when test="${isAdmin}">
+                    <section class="dashboard-feature-grid" aria-label="Administration dashboard lists">
+                        <article class="panel dashboard-data-panel">
+                            <div class="panel-heading"><div><p class="eyebrow">ACCESS CONTROL</p><h2>User management</h2></div><a class="text-action" href="${pageContext.request.contextPath}/admin?tab=users">Manage users -&gt;</a></div>
+                            <div class="table-scroll"><table class="data-table"><thead><tr><th>ACCOUNT</th><th>ROLE</th><th>ACCESS</th></tr></thead><tbody>
+                                <c:forEach var="account" items="${adminUsers}"><tr><td><strong class="profile-column-name"><c:out value="${account.fullName}"/></strong><br><span class="quiet-label"><c:out value="${account.email}"/></span></td><td><c:out value="${account.role}"/></td><td><c:choose><c:when test="${account.active}">Active</c:when><c:otherwise>Inactive</c:otherwise></c:choose></td></tr></c:forEach>
+                                <c:if test="${empty adminUsers}"><tr><td colspan="3"><div class="inline-empty">No accounts are registered.</div></td></tr></c:if>
+                            </tbody></table></div>
+                        </article>
+                        <article class="panel dashboard-data-panel">
+                            <div class="panel-heading"><div><p class="eyebrow">COMPUTE &amp; STORAGE</p><h2>Resource management</h2></div><a class="text-action" href="${pageContext.request.contextPath}/admin?tab=resources">Manage resources -&gt;</a></div>
+                            <div class="table-scroll"><table class="data-table"><thead><tr><th>RESOURCE</th><th>TYPE</th><th>CAPACITY</th><th>STATE</th></tr></thead><tbody>
+                                <c:forEach var="resource" items="${adminResources}"><tr><td><strong class="profile-column-name"><c:out value="${resource.name}"/></strong></td><td><c:out value="${resource.type}"/></td><td><c:out value="${resource.capacityLabel}"/></td><td><c:out value="${resource.statusLabel}"/></td></tr></c:forEach>
+                                <c:if test="${empty adminResources}"><tr><td colspan="4"><div class="inline-empty">No resource records are available.</div></td></tr></c:if>
+                            </tbody></table></div>
+                        </article>
+                        <article class="panel dashboard-data-panel dashboard-data-wide">
+                            <div class="panel-heading"><div><p class="eyebrow">RESEARCH WORKSPACES</p><h2>Project management</h2></div><a class="text-action" href="${pageContext.request.contextPath}/admin?tab=projects">Review projects -&gt;</a></div>
+                            <div class="table-scroll"><table class="data-table"><thead><tr><th>PROJECT</th><th>OWNER</th><th>TEAM</th><th>DATASETS</th><th>EXPERIMENTS</th><th>STATUS</th></tr></thead><tbody>
+                                <c:forEach var="project" items="${dashboardProjects}"><tr><td><strong class="profile-column-name"><c:out value="${project.title}"/></strong></td><td><c:out value="${project.ownerName}"/></td><td><c:out value="${project.memberCount}"/></td><td><c:out value="${project.datasetCount}"/></td><td><c:out value="${project.experimentCount}"/></td><td><c:out value="${project.statusLabel}"/></td></tr></c:forEach>
+                                <c:if test="${empty dashboardProjects}"><tr><td colspan="6"><div class="inline-empty">No research projects yet.</div></td></tr></c:if>
+                            </tbody></table></div>
+                        </article>
+                    </section>
+                </c:when>
+                <c:otherwise>
+                    <section class="dashboard-feature-grid" aria-label="Researcher dashboard lists">
+                        <article class="panel dashboard-data-panel">
+                            <div class="panel-heading"><div><p class="eyebrow">DATASET MANAGEMENT</p><h2>Uploaded datasets</h2></div><a class="text-action" href="${pageContext.request.contextPath}/datasets">Open datasets -&gt;</a></div>
+                            <div class="table-scroll"><table class="data-table"><thead><tr><th>DATASET</th><th>PROJECT</th><th>ROWS</th><th>COLUMNS</th></tr></thead><tbody>
+                                <c:forEach var="dataset" items="${dashboardDatasets}"><tr><td><strong class="profile-column-name"><c:out value="${dataset.name}"/></strong><br><span class="quiet-label"><c:out value="${dataset.formattedSize}"/></span></td><td><c:out value="${dataset.projectTitle}"/></td><td><c:out value="${dataset.rowCount}"/></td><td><c:out value="${dataset.columnCount}"/></td></tr></c:forEach>
+                                <c:if test="${empty dashboardDatasets}"><tr><td colspan="4"><div class="inline-empty">Upload a CSV dataset to begin a research run.</div></td></tr></c:if>
+                            </tbody></table></div>
+                        </article>
+                        <article class="panel dashboard-data-panel">
+                            <div class="panel-heading"><div><p class="eyebrow">MODEL TRAINING</p><h2>Recent training jobs</h2></div><a class="text-action" href="${pageContext.request.contextPath}/experiments">Open experiments -&gt;</a></div>
+                            <div class="table-scroll"><table class="data-table"><thead><tr><th>EXPERIMENT</th><th>MODEL</th><th>STATUS</th><th>ACCURACY</th></tr></thead><tbody>
+                                <c:forEach var="run" items="${dashboardRuns}"><tr><td><a class="text-action" href="${pageContext.request.contextPath}/experiments?view=<c:out value='${run.id}'/>"><c:out value="${run.name}"/></a><br><span class="quiet-label"><c:out value="${run.datasetName}"/></span></td><td><c:out value="${run.modelName}"/></td><td><span class="status-badge status-<c:out value='${run.statusLabel}'/>"><span></span><c:out value="${run.statusLabel}"/></span><c:if test="${run.live}"><div class="mini-progress"><span style="width:<c:out value='${run.progress}'/>%"></span></div></c:if></td><td><c:out value="${run.accuracyPercent}"/></td></tr></c:forEach>
+                                <c:if test="${empty dashboardRuns}"><tr><td colspan="4"><div class="inline-empty">Training jobs and saved metrics will appear here.</div></td></tr></c:if>
+                            </tbody></table></div>
+                        </article>
+                        <article class="panel dashboard-data-panel">
+                            <div class="panel-heading"><div><p class="eyebrow">COLLABORATION</p><h2>Project teams</h2></div><a class="text-action" href="${pageContext.request.contextPath}/collaboration">Manage teams -&gt;</a></div>
+                            <div class="table-scroll"><table class="data-table"><thead><tr><th>PROJECT</th><th>OWNER</th><th>TEAM MEMBERS</th></tr></thead><tbody>
+                                <c:forEach var="project" items="${dashboardProjects}"><tr><td><a class="text-action" href="${pageContext.request.contextPath}/collaboration?project=<c:out value='${project.id}'/>"><c:out value="${project.title}"/></a></td><td><c:out value="${project.ownerName}"/></td><td><c:out value="${project.memberCount}"/></td></tr></c:forEach>
+                                <c:if test="${empty dashboardProjects}"><tr><td colspan="3"><div class="inline-empty">Create or join a project to collaborate.</div></td></tr></c:if>
+                            </tbody></table></div>
+                        </article>
+                        <article class="panel dashboard-profile-card">
+                            <div class="dashboard-profile-avatar"><c:out value="${initials}"/></div><div><p class="eyebrow">PROFILE INFORMATION</p><h2><c:out value="${accountName}"/></h2><p><c:out value="${accountEmail}"/></p><span class="member-role-pill role-researcher">Researcher</span></div><a class="button button-secondary" href="${pageContext.request.contextPath}/profile">Update profile</a>
+                        </article>
+                    </section>
+                </c:otherwise>
+            </c:choose>
             <footer class="page-footer"><span>DataHive Research Platform</span><span>Thoughtful research starts with a clear workspace.</span></footer>
         </div>
     </main>

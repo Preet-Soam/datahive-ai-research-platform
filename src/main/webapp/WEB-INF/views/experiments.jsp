@@ -7,7 +7,7 @@
     <title>Experiments  |  DataHive</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/app.css?v=20261009-research-ui1">
+    <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/app.css?v=20261009-research-models2">
 </head>
 <body class="app-page" data-run-live="<c:out value='${not empty selectedExperiment and selectedExperiment.live}'/>">
 <div class="app-shell">
@@ -15,7 +15,7 @@
     <main class="main-content">
         <header class="topbar"><button class="mobile-menu" type="button" data-menu-toggle aria-label="Toggle navigation"><span class="menu-glyph" aria-hidden="true"></span></button><div class="breadcrumbs"><span>Workspace</span><span class="crumb-divider">/</span><strong>Experiments</strong></div><div class="topbar-actions"><span class="environment-pill"><span></span> LOCAL WORKSPACE</span><button class="icon-button notification-trigger" type="button" data-notification-toggle aria-expanded="false" aria-controls="notification-panel" aria-label="Notifications" title="Notifications"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 8a5.5 5.5 0 0 0-11 0c0 6-2 6-2 7.5h15C17.5 14 15.5 14 15.5 8ZM8 18h4"/></svg><span class="notification-badge" data-notification-badge hidden></span></button><button type="button" class="top-avatar account-menu-trigger" data-account-menu-toggle aria-expanded="false" aria-controls="account-menu-panel" aria-label="Open account menu" title="Account menu"><span data-profile-initials><c:out value="${initials}"/></span><img class="profile-photo-image" data-profile-photo alt="" hidden></button></div></header>
         <div class="page-wrap">
-            <section class="welcome-row"><div><p class="eyebrow">TRAIN  |  MEASURE  |  REPEAT</p><h1>Experiments</h1><p class="page-intro">Train a reproducible baseline on a project dataset, then review its held-out metrics and run log.</p></div><span class="model-chip">CPU  |  BINARY CLASSIFICATION</span></section>
+            <section class="welcome-row"><div><p class="eyebrow">TRAIN  |  MEASURE  |  REPEAT</p><h1>Experiments</h1><p class="page-intro">Train reproducible supervised classification models on project datasets, review held-out results, and compare experiments.</p></div><span class="model-chip">LOCAL CPU  |  CLASSIFICATION</span></section>
 
             <c:if test="${param.notice eq 'queued'}"><div class="alert alert-success" role="status">The training run was added to the local queue. Its status and results will update here.</div></c:if>
             <c:if test="${param.error eq 'validation'}"><div class="alert alert-error" role="alert">Enter a valid experiment name, choose a dataset, and provide the exact CSV target header.</div></c:if>
@@ -26,22 +26,24 @@
 
             <section class="experiment-layout <c:if test='${empty selectedExperiment}'>experiment-layout-single</c:if>">
                 <article class="panel experiment-launch-panel">
-                    <div class="panel-heading"><div><p class="eyebrow">NEW RUN</p><h2>Binary logistic regression</h2></div><span class="experiment-model-icon">ML(x)</span></div>
-                    <p class="experiment-lead">Training runs on this DataHive server using its local CPU. Choose a two-class target and the numeric columns the model should use. Logistic regression learns weights from training rows, then reports metrics on held-out rows. No remote AI service or GPU is used.</p>
+                    <div class="panel-heading"><div><p class="eyebrow">NEW RUN</p><h2>Configure a model experiment</h2></div><span class="experiment-model-icon">ML(x)</span></div>
+                    <p class="experiment-lead">Train on this server’s CPU using your project CSV. Choose a model, target, and numeric features; DataHive creates a reproducible stratified holdout split and saves metrics and run logs. Current built-in models are logistic regression and decision trees; no cloud AI service or GPU is required.</p>
                     <form method="post" action="${pageContext.request.contextPath}/experiments" class="experiment-form">
                         <input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>"/>
                         <label for="experiment-name">Experiment name</label><input id="experiment-name" name="name" required minlength="3" maxlength="160" placeholder="e.g. Churn baseline  |  v1">
+                        <label for="model-type">Classification model</label><select id="model-type" name="modelType" required><option value="LOGISTIC_REGRESSION">Logistic regression · two classes</option><option value="DECISION_TREE">Decision tree · two or more classes</option></select>
+                        <p class="field-hint" data-model-hint>Logistic regression learns feature weights with gradient descent. Use it when your target has exactly two classes.</p>
                         <label for="experiment-dataset">Project dataset</label>
                         <select id="experiment-dataset" name="datasetId" required>
                             <option value="">Choose a CSV dataset</option>
                             <c:forEach var="dataset" items="${datasets}"><option value="<c:out value='${dataset.id}'/>"><c:out value="${dataset.name}"/>  |  <c:out value="${dataset.projectTitle}"/></option></c:forEach>
                         </select>
                         <label for="target-column">What should the model predict?</label><select id="target-column" name="targetColumn" required disabled><option value="">Choose a dataset first</option></select>
-                        <p class="field-hint">Choose the label column. It must contain exactly two classes, such as yes/no. Numeric fields can be selected below as model inputs.</p>
+                        <p class="field-hint" data-target-hint>Choose the label column. Logistic regression requires exactly two classes; a decision tree can classify two or more. Numeric fields can be selected below as model inputs.</p>
                         <fieldset class="feature-picker" aria-describedby="feature-picker-hint"><legend>Model input features</legend><p class="feature-picker-hint" id="feature-picker-hint" data-feature-hint>Select a dataset to see its numeric columns. All eligible columns start selected.</p><div class="feature-picker-list" data-feature-list></div></fieldset>
-                        <div class="training-parameter-grid"><div><label for="training-epochs">Training epochs</label><select id="training-epochs" name="epochs"><option value="60">60  |  quick</option><option value="120" selected>120  |  balanced</option><option value="180">180  |  extended</option></select></div><div><label for="learning-rate">Learning rate</label><select id="learning-rate" name="learningRate"><option value="0.05">0.05  |  cautious</option><option value="0.12" selected>0.12  |  balanced</option><option value="0.2">0.20  |  faster</option></select></div></div>
+                        <div class="training-parameter-grid" data-logistic-parameters><div><label for="training-epochs">Training epochs</label><select id="training-epochs" name="epochs"><option value="60">60  |  quick</option><option value="120" selected>120  |  balanced</option><option value="180">180  |  extended</option></select></div><div><label for="learning-rate">Learning rate</label><select id="learning-rate" name="learningRate"><option value="0.05">0.05  |  cautious</option><option value="0.12" selected>0.12  |  balanced</option><option value="0.2">0.20  |  faster</option></select></div></div>
                         <div class="experiment-method-note"><span>01</span><p><strong>80/20 stratified split</strong><small>Each class is represented in train and holdout data.</small></p></div>
-                        <div class="experiment-method-note"><span>02</span><p><strong>120 training epochs</strong><small>Seed 42 makes the split and training reproducible.</small></p></div>
+                        <div class="experiment-method-note"><span>02</span><p data-reproducibility-note><strong>Seed 42</strong><small>Repeating the same setup keeps the split deterministic.</small></p></div>
                         <div class="form-actions"><a class="button button-secondary" href="${pageContext.request.contextPath}/datasets">Inspect datasets</a><button class="button button-primary" type="submit" <c:if test="${empty datasets}">disabled</c:if>>Start training <span>-&gt;</span></button></div>
                     </form>
                     <c:if test="${empty datasets}"><p class="experiment-empty-note">Upload a CSV dataset first to enable training.</p></c:if>
@@ -50,7 +52,7 @@
                 <c:if test="${not empty selectedExperiment}">
                     <article class="panel experiment-detail-panel">
                         <div class="panel-heading"><div><p class="eyebrow">RUN DETAIL  |  #<c:out value="${selectedExperiment.runId}"/></p><h2><c:out value="${selectedExperiment.name}"/></h2></div><a class="back-link" href="${pageContext.request.contextPath}/experiments">Close detail</a></div>
-                        <div class="experiment-meta"><span><c:out value="${selectedExperiment.projectTitle}"/></span><span><c:out value="${selectedExperiment.datasetName}"/></span><span>Target: <strong><c:out value="${selectedExperiment.targetColumn}"/></strong></span><span><c:out value="${selectedExperiment.epochs}"/> epochs</span><span>Learning rate <c:out value="${selectedExperiment.learningRateLabel}"/></span></div>
+                        <div class="experiment-meta"><span><c:out value="${selectedExperiment.projectTitle}"/></span><span><c:out value="${selectedExperiment.datasetName}"/></span><span>Target: <strong><c:out value="${selectedExperiment.targetColumn}"/></strong></span><c:choose><c:when test="${selectedExperiment.modelName eq 'Binary logistic regression'}"><span><c:out value="${selectedExperiment.epochs}"/> epochs</span><span>Learning rate <c:out value="${selectedExperiment.learningRateLabel}"/></span></c:when><c:otherwise><span>Maximum tree depth: 6</span><span>Macro-averaged metrics</span></c:otherwise></c:choose></div>
                         <div class="run-progress-row"><span class="status-badge status-<c:out value='${selectedExperiment.statusLabel}'/>"><span></span><c:out value="${selectedExperiment.statusLabel}"/></span><strong><c:out value="${selectedExperiment.progress}"/>%</strong></div>
                         <div class="progress-track"><span style="width:<c:out value='${selectedExperiment.progress}'/>%"></span></div>
                         <c:if test="${selectedExperiment.status eq 'FAILED'}">
@@ -81,7 +83,7 @@
                     <div class="table-scroll"><table class="data-table comparison-table"><thead><tr><th>MEASURE</th><c:forEach var="run" items="${comparisonExperiments}"><th><c:out value="${run.name}"/><small>Run #<c:out value="${run.runId}"/></small></th></c:forEach></tr></thead><tbody>
                         <tr><th>Dataset</th><c:forEach var="run" items="${comparisonExperiments}"><td><c:out value="${run.datasetName}"/></td></c:forEach></tr>
                         <tr><th>Target</th><c:forEach var="run" items="${comparisonExperiments}"><td><c:out value="${run.targetColumn}"/></td></c:forEach></tr>
-                        <tr><th>Training setup</th><c:forEach var="run" items="${comparisonExperiments}"><td><c:out value="${run.epochs}"/> epochs<br><span class="quiet-label">LR <c:out value="${run.learningRateLabel}"/></span></td></c:forEach></tr>
+                        <tr><th>Training setup</th><c:forEach var="run" items="${comparisonExperiments}"><td><c:choose><c:when test="${run.modelName eq 'Binary logistic regression'}"><c:out value="${run.epochs}"/> epochs<br><span class="quiet-label">LR <c:out value="${run.learningRateLabel}"/></span></c:when><c:otherwise>Depth-limited CART<br><span class="quiet-label">Macro metrics</span></c:otherwise></c:choose></td></c:forEach></tr>
                         <tr><th>Accuracy</th><c:forEach var="run" items="${comparisonExperiments}"><td><strong><c:out value="${run.accuracyPercent}"/></strong></td></c:forEach></tr>
                         <tr><th>Precision</th><c:forEach var="run" items="${comparisonExperiments}"><td><strong><c:out value="${run.precisionPercent}"/></strong></td></c:forEach></tr>
                         <tr><th>Recall</th><c:forEach var="run" items="${comparisonExperiments}"><td><strong><c:out value="${run.recallPercent}"/></strong></td></c:forEach></tr>
@@ -112,6 +114,6 @@
     </main>
 </div>
 <script src="${pageContext.request.contextPath}/assets/js/app.js?v=20261008-photo-menu4" defer></script>
-<script src="${pageContext.request.contextPath}/assets/js/training-config.js?v=20261009-features1" defer></script>
+<script src="${pageContext.request.contextPath}/assets/js/training-config.js?v=20261009-model-selector2" defer></script>
 </body>
 </html>

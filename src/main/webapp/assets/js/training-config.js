@@ -4,6 +4,11 @@
     const featureList = document.querySelector("[data-feature-list]");
     const featureHint = document.querySelector("[data-feature-hint]");
     const catalog = document.querySelector("[data-dataset-catalog]");
+    const modelSelect = document.querySelector("#model-type");
+    const logisticParameters = document.querySelector("[data-logistic-parameters]");
+    const modelHint = document.querySelector("[data-model-hint]");
+    const targetHint = document.querySelector("[data-target-hint]");
+    const reproducibilityNote = document.querySelector("[data-reproducibility-note]");
     if (!datasetSelect || !targetSelect || !featureList || !catalog) return;
 
     const numericTypes = new Set(["INTEGER", "DECIMAL"]);
@@ -67,7 +72,23 @@
         renderFeatures(targetSelect.value);
     }
 
+    function updateModel() {
+        const tree = modelSelect?.value === "DECISION_TREE";
+        if (logisticParameters) logisticParameters.hidden = tree;
+        if (modelHint) modelHint.textContent = tree
+            ? "A CART decision tree learns readable threshold splits using Gini impurity. It supports two or more target classes and is capped at depth 6 for this local demo."
+            : "Logistic regression learns feature weights with gradient descent. Use it when your target has exactly two classes.";
+        if (targetHint) targetHint.textContent = tree
+            ? "Choose the label column. The decision tree can classify two or more classes. Numeric fields can be selected below as model inputs."
+            : "Choose the label column. Logistic regression requires exactly two classes, such as yes/no. Numeric fields can be selected below as model inputs.";
+        if (reproducibilityNote) reproducibilityNote.innerHTML = tree
+            ? "<strong>Maximum tree depth: 6</strong><small>Depth is capped to keep the model compact and reduce overfitting.</small>"
+            : "<strong>Seed 42</strong><small>Repeating the same setup keeps the split deterministic.</small>";
+    }
+
     datasetSelect.addEventListener("change", updateDataset);
     targetSelect.addEventListener("change", () => renderFeatures(targetSelect.value));
+    modelSelect?.addEventListener("change", updateModel);
     updateDataset();
+    updateModel();
 })();

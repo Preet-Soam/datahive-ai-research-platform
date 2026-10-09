@@ -43,22 +43,24 @@ public final class TrainingService implements ServletContextListener {
     }
 
     public void enqueue(long runId, long projectId, long datasetId, long userId, Dataset dataset,
-                        String targetColumn, List<String> features, int epochs, double learningRate) {
+                        String modelType, String targetColumn, List<String> features,
+                        int epochs, double learningRate) {
         Path root = AppStorage.uploadDirectory();
         Path csv = root.resolve(dataset.getStoredFilename()).normalize();
         if (!csv.startsWith(root)) throw new IllegalArgumentException("Invalid dataset storage path");
-        executor.execute(() -> run(runId, projectId, userId, csv, targetColumn, features, epochs, learningRate));
+        executor.execute(() -> run(runId, projectId, userId, csv, modelType, targetColumn,
+                features, epochs, learningRate));
     }
 
-    private void run(long runId, long projectId, long userId, Path csv,
+    private void run(long runId, long projectId, long userId, Path csv, String modelType,
                      String targetColumn, List<String> features, int epochs, double learningRate) {
         ExperimentDao dao = new ExperimentDao();
         long started = System.nanoTime();
         try {
             if (!dao.startRun(runId)) return;
             CsvProfiler.Table table = new CsvProfiler().readTable(csv);
-            BinaryLogisticTrainer.Result result = new BinaryLogisticTrainer().train(table, targetColumn, features,
-                    42, epochs, learningRate,
+            BinaryLogisticTrainer.Result result = new ModelTrainer().train(modelType, table,
+                    targetColumn, features, 42, epochs, learningRate,
                     (progress, message) -> {
                         try { dao.updateProgress(runId, progress, message); }
                         catch (SQLException exception) { throw new IOException("Could not record training progress", exception); }

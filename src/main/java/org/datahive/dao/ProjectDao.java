@@ -19,7 +19,8 @@ public final class ProjectDao {
     private static final String PROJECT_COLUMNS = "p.id, p.owner_id, p.title, p.description, p.status, " +
             "u.full_name AS owner_name, " +
             "(SELECT COUNT(*) FROM datasets d WHERE d.project_id = p.id) AS dataset_count, " +
-            "(SELECT COUNT(*) FROM experiments e WHERE e.project_id = p.id) AS experiment_count ";
+            "(SELECT COUNT(*) FROM experiments e WHERE e.project_id = p.id) AS experiment_count, " +
+            "(SELECT COUNT(*) FROM project_members pm_count WHERE pm_count.project_id = p.id) AS member_count ";
 
     public List<Project> findVisibleTo(User user) throws SQLException {
         String sql = "SELECT " + PROJECT_COLUMNS + "FROM projects p JOIN users u ON u.id = p.owner_id " +
@@ -236,6 +237,7 @@ public final class ProjectDao {
     private static Project map(ResultSet result) throws SQLException {
         return new Project(result.getLong("id"), result.getLong("owner_id"), result.getString("title"),
                 result.getString("description"), result.getString("status"), result.getString("owner_name"),
-                result.getLong("dataset_count"), result.getLong("experiment_count"));
+                result.getLong("dataset_count"), result.getLong("experiment_count"),
+                result.getLong("member_count"));
     }
 }

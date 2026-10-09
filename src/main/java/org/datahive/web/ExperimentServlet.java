@@ -17,8 +17,8 @@ import org.datahive.model.TrainingExperiment;
 import org.datahive.model.User;
 import org.datahive.service.TrainingService;
 import org.datahive.service.ActivityLogger;
-import org.datahive.service.BinaryLogisticTrainer;
 import org.datahive.service.CsvProfiler;
+import org.datahive.service.ModelTrainer;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -93,10 +93,12 @@ public final class ExperimentServlet extends HttpServlet {
         try {
             String name = clean(request.getParameter("name"));
             String target = clean(request.getParameter("targetColumn"));
+            String modelType = clean(request.getParameter("modelType"));
             int epochs = Integer.parseInt(request.getParameter("epochs"));
             double learningRate = Double.parseDouble(request.getParameter("learningRate"));
             Dataset dataset = datasetDao.findVisibleById(positiveId(request.getParameter("datasetId")), user).orElse(null);
             if (dataset == null || name.length() < 3 || name.length() > 160 || target.isBlank() || target.length() > 190 ||
+                    (!ModelTrainer.LOGISTIC.equals(modelType) && !ModelTrainer.DECISION_TREE.equals(modelType)) ||
                     (epochs != 60 && epochs != 120 && epochs != 180) ||
                     !Double.isFinite(learningRate) || (learningRate != 0.05 && learningRate != 0.12 && learningRate != 0.2)) {
                 response.sendRedirect(request.getContextPath() + "/experiments?error=validation"); return;
@@ -126,21 +128,21 @@ public final class ExperimentServlet extends HttpServlet {
             }
             try {
                 CsvProfiler.Table table = new CsvProfiler().readTable(datasetFile);
-                new BinaryLogisticTrainer().validate(table, target, features);
+                new ModelTrainer().validate(modelType, table, target, features);
             } catch (IOException exception) {
                 request.getSession(true).setAttribute("trainingPreflightError", exception.getMessage());
                 response.sendRedirect(request.getContextPath() + "/experiments?error=trainingData");
                 return;
             }
             ExperimentDao.TrainingTicket ticket = experimentDao.createAndQueue(project.getId(), dataset.getId(),
-                    name, target, features, epochs, learningRate, user.getId());
+                    name, target, modelType, features, epochs, learningRate, user.getId());
             TrainingService service = TrainingService.from(getServletContext());
             if (service == null) {
                 experimentDao.fail(ticket.runId(), "The local training queue is unavailable.");
                 throw new ServletException("Training service was not initialized");
             }
-            try { service.enqueue(ticket.runId(), project.getId(), dataset.getId(), user.getId(), dataset, target,
-                    features, epochs, learningRate); }
+            try { service.enqueue(ticket.runId(), project.getId(), dataset.getId(), user.getId(), dataset,
+                    modelType, target, features, epochs, learningRate); }
             catch (java.util.concurrent.RejectedExecutionException | IllegalArgumentException exception) {
                 experimentDao.fail(ticket.runId(), "The training queue is full. Please try again shortly.");
                 response.sendRedirect(request.getContextPath() + "/experiments?error=queue"); return;

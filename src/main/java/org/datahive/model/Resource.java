@@ -25,6 +25,7 @@ public final class Resource {
     public double getCapacity() { return capacity; }
     public String getUnit() { return unit; }
     public String getStatus() { return status; }
+    public String getStatusLabel() { return status == null ? "unknown" : status.toLowerCase(java.util.Locale.ROOT).replace('_', ' '); }
     public String getDescription() { return description; }
     public String getCapacityLabel() { return new java.text.DecimalFormat("#,##0.##").format(capacity) + " " + unit; }
 }

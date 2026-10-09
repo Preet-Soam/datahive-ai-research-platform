@@ -8,7 +8,8 @@ DataHive now has two role-based workspaces and the main research workflow:
 
 - Admins can create/edit/deactivate accounts, maintain compute/storage resource records, review projects, and see usage reports.
 - Researchers can create and manage project workspaces, upload and profile CSV files, manage project teams, and update their profile.
-- A researcher can start a real binary logistic-regression baseline on a project CSV. Runs are queued in a bounded local worker, use a deterministic stratified 80/20 holdout, and persist progress, logs, accuracy, precision, recall, F1, and elapsed compute time.
+- Researchers can train binary logistic-regression and multiclass-capable decision-tree classifiers on project CSVs. Runs are queued in a bounded local worker, use a deterministic stratified 80/20 holdout, and persist progress, logs, accuracy, macro precision/recall/F1, configuration, and elapsed compute time.
+- Role dashboards surface account/resource/project inventories for admins and dataset, training-job, collaboration, and profile summaries for researchers.
 - Uploads and training durations feed the admin usage charts. Resource entries describe the local workspace; DataHive does not provision cloud compute or storage.
 - Views use responsive JSP/HTML/CSS with small vanilla JavaScript interactions.
 
@@ -62,7 +63,7 @@ The demo accounts are inserted only when the database is empty. A clearly labele
 2. Open **Experiments**, choose `churned` as the binary target, select the numeric input columns, name the experiment, and start training.
 3. Open the run detail to see queue/run progress, timestamped logs, and held-out accuracy, precision, recall, and F1. The experiment list shows saved results.
 4. Open **Collaboration** to review or manage a project team. The demo project begins with its researcher owner; an Administrator can create additional real accounts.
-5. Select two to four completed runs to compare their held-out metrics. Sign in as Admin to manage accounts and resource records, review the project inventory, and change the usage report window.
+5. Try both logistic regression and decision tree, then select two to four completed runs to compare their held-out metrics. Sign in as Admin to manage accounts and resources, review the project inventory, and filter usage reports by date.
 
 ## Configuration
 
@@ -112,11 +113,11 @@ data/                           Local H2 files (ignored by Git)
 uploads/                        Server-named local CSVs (ignored by Git)
 ```
 
-## Training baseline
+## Local model training
 
-The first training workflow is intentionally bounded and explainable. It accepts CSVs up to 10 MiB, 50 columns, and 50,000 data rows. Choose a binary target header; all other columns inferred as integers or decimals are used as features. Missing feature values are imputed from the training split, features are standardized, and a fixed-seed logistic-regression model runs for 60, 120, or 180 epochs at a selected learning rate. Evaluation metrics are calculated on a stratified holdout set. Each experiment stores its configuration, queue/run state, timestamped log, and metrics. The local worker runs at most two jobs at once and queues up to twelve more. Admin reporting offers a 3, 6, or 12-month window for recorded run time and uploaded CSV bytes.
+The built-in supervised classification workflow accepts CSVs up to 10 MiB, 50 columns, and 50,000 data rows. Researchers select a label column and numeric features. Logistic regression supports two classes, standardizes features, imputes missing values from the training split, and offers 60, 120, or 180 epochs and learning-rate settings. The CART decision tree supports two or more classes, uses Gini impurity, imputes missing feature values from the training split, and caps depth at six. Both models use a deterministic, stratified 80/20 split and report held-out accuracy, precision, recall, and F1 (macro-averaged for the tree). Experiments save their model choice, configuration, status, timestamped logs, and metrics. The local worker runs at most two jobs at once and queues up to twelve more. Admin reports filter recorded compute time and uploaded CSV bytes by a chosen date range.
 
-This is a demo baseline, not an AI platform execution service: there is no GPU/cloud provisioning, artifact registry, arbitrary Python model execution, or production-grade multi-tenant file storage.
+Models train on the web server's local CPU. DataHive does not provision cloud/GPU compute, execute arbitrary Python notebooks, or store deployable model artifacts yet. It provides a working, explainable supervised-classification research workflow for small CSV datasets.
 
 ## Presentation and submission
 
