@@ -33,6 +33,9 @@ public final class LoginServlet extends HttpServlet {
         HttpSession session = request.getSession(true);
         session.setAttribute(AuthFilter.CSRF_SESSION_KEY, UUID.randomUUID().toString());
         request.setAttribute("csrfToken", session.getAttribute(AuthFilter.CSRF_SESSION_KEY));
+        session.setAttribute("googleNonce", UUID.randomUUID().toString());
+        request.setAttribute("googleNonce", session.getAttribute("googleNonce"));
+        request.setAttribute("googleClientId", System.getenv("DATAHIVE_GOOGLE_CLIENT_ID"));
         request.getRequestDispatcher("/WEB-INF/views/login.jsp").forward(request, response);
     }
 
@@ -56,6 +59,8 @@ public final class LoginServlet extends HttpServlet {
                 request.setAttribute("email", email == null ? "" : email.trim());
                 request.setAttribute("loginError", "We could not sign you in with those details.");
                 request.setAttribute("csrfToken", expectedToken);
+                request.setAttribute("googleNonce", session.getAttribute("googleNonce"));
+                request.setAttribute("googleClientId", System.getenv("DATAHIVE_GOOGLE_CLIENT_ID"));
                 request.getRequestDispatcher("/WEB-INF/views/login.jsp").forward(request, response);
                 return;
             }

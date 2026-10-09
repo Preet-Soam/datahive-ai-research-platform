@@ -1,11 +1,13 @@
 @echo off
 setlocal EnableExtensions
 
-rem DataHive launcher. Update these folders if you move Java, Maven, or Tomcat.
 set "PROJECT_DIR=%~dp0"
-if not defined JAVA_HOME set "JAVA_HOME=C:\Program Files\Java\jdk-27"
-if not defined MAVEN_HOME set "MAVEN_HOME=C:\Users\shub8\Downloads\apache-maven-3.9.16-bin\apache-maven-3.9.16"
-if not defined CATALINA_HOME set "CATALINA_HOME=C:\Users\shub8\Downloads\apache-tomcat-10.1.60-windows-x64\apache-tomcat-10.1.60"
+set "TOOLS_DIR=%PROJECT_DIR%.tools"
+set "JAVA_HOME=%TOOLS_DIR%\jdk-21"
+set "MAVEN_HOME=%TOOLS_DIR%\apache-maven-3.10.0"
+set "CATALINA_HOME=%TOOLS_DIR%\apache-tomcat-10.1.60"
+set "JRE_HOME=%JAVA_HOME%"
+set "PATH=%JAVA_HOME%\bin;%PATH%"
 
 if "%~1"=="" goto menu
 set "ACTION=%~1"
@@ -13,10 +15,10 @@ goto dispatch
 
 :menu
 echo.
-echo  DataHive - local Tomcat control
-echo  --------------------------------
-echo  1. Build, deploy, and start
-echo  2. Stop Tomcat
+echo  DataHive - local setup
+echo  ----------------------
+echo  1. Set up, build, and run
+echo  2. Stop DataHive
 echo  3. Exit
 echo.
 choice /c 123 /n /m "Choose an option: "
@@ -31,68 +33,56 @@ if /i "%ACTION%"=="stop" goto stop
 echo Usage: %~nx0 [start^|stop]
 exit /b 2
 
-:checksetup
-if not exist "%JAVA_HOME%\bin\java.exe" (
+:start
+echo.
+echo Preparing the local Java, Maven, and Tomcat tools...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PROJECT_DIR%setup-datahive.ps1"
+if errorlevel 1 goto failed
+
+if not exist "%JAVA_HOME%\bin\javac.exe" (
     echo.
-    echo Java was not found at:
-    echo   %JAVA_HOME%
-    echo Edit JAVA_HOME near the top of this file to point to your JDK folder.
-    exit /b 1
+    echo Java setup did not complete. Review the setup message above.
+    goto failed
+)
+if not exist "%MAVEN_HOME%\bin\mvn.cmd" (
+    echo Maven setup did not complete. Review the setup message above.
+    goto failed
 )
 if not exist "%CATALINA_HOME%\bin\startup.bat" (
-    echo.
-    echo Tomcat was not found at:
-    echo   %CATALINA_HOME%
-    echo Edit CATALINA_HOME near the top of this file to point to your Tomcat folder.
-    exit /b 1
-)
-exit /b 0
-
-:start
-call :checksetup
-if errorlevel 1 goto failed
-if not exist "%MAVEN_HOME%\bin\mvn.cmd" (
-    where mvn.cmd >nul 2>nul
-    if errorlevel 1 (
-        echo.
-        echo Maven was not found at:
-        echo   %MAVEN_HOME%\bin\mvn.cmd
-        echo Edit MAVEN_HOME near the top of this file to point to your Maven folder.
-        goto failed
-    )
-    set "MAVEN_COMMAND=mvn.cmd"
-) else (
-    set "MAVEN_COMMAND=%MAVEN_HOME%\bin\mvn.cmd"
+    echo Tomcat setup did not complete. Review the setup message above.
+    goto failed
 )
 
-set "PATH=%JAVA_HOME%\bin;%PATH%"
 echo.
-echo Building DataHive with Maven...
+echo Building DataHive...
 pushd "%PROJECT_DIR%"
-call "%MAVEN_COMMAND%" -DskipTests clean package
+call "%MAVEN_HOME%\bin\mvn.cmd" -DskipTests clean package
 if errorlevel 1 (
     popd
     echo.
-    echo The build did not finish. Read the Maven message above, fix the issue, and run this file again.
+    echo The build failed. Review the Maven output above.
     goto failed
 )
 if not exist "target\datahive.war" (
     popd
-    echo.
-    echo Maven finished but target\datahive.war was not created.
+    echo The build completed without creating target\datahive.war.
     goto failed
 )
 
 echo.
-echo Stopping Tomcat before replacing the deployed app...
-call "%CATALINA_HOME%\bin\shutdown.bat"
-timeout /t 3 /nobreak >nul
-echo Deploying DataHive to Tomcat...
+echo Stopping any previous DataHive Tomcat instance...
+call "%CATALINA_HOME%\bin\shutdown.bat" >nul 2>&1
+powershell.exe -NoProfile -Command "$deadline = (Get-Date).AddSeconds(15); do { $listener = Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue; if (-not $listener) { exit 0 }; Start-Sleep -Milliseconds 500 } while ((Get-Date) -lt $deadline); exit 1"
+if errorlevel 1 (
+    popd
+    echo Port 8080 is still in use. Stop the other local server, then run this file again.
+    goto failed
+)
+echo Deploying DataHive...
 copy /Y "target\datahive.war" "%CATALINA_HOME%\webapps\datahive.war" >nul
 if errorlevel 1 (
     popd
-    echo.
-    echo Could not copy DataHive into Tomcat's webapps folder.
+    echo Could not replace the deployed app. Close any other Tomcat using this folder and try again.
     goto failed
 )
 popd
@@ -105,9 +95,11 @@ echo DataHive is starting at http://localhost:8080/datahive/
 goto success
 
 :stop
-call :checksetup
-if errorlevel 1 goto failed
-echo Stopping Tomcat...
+if not exist "%CATALINA_HOME%\bin\shutdown.bat" (
+    echo Tomcat has not been installed yet. Choose option 1 from manage-datahive.bat first.
+    goto failed
+)
+echo Stopping DataHive...
 call "%CATALINA_HOME%\bin\shutdown.bat"
 if errorlevel 1 goto failed
 echo Tomcat stop requested.

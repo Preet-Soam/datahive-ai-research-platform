@@ -25,6 +25,7 @@ replay_pid*
 
 # Maven output and local database/upload data
 /target/
+/.tools/
 /data/
 /uploads/
 .env

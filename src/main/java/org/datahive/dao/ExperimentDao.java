@@ -61,7 +61,10 @@ public final class ExperimentDao {
                         runId = keys.getLong(1);
                     }
                 }
-                addLog(connection, runId, "INFO", "Queued binary logistic regression with an 80/20 stratified holdout and seed 42.");
+                addLog(connection, runId, "INFO", "Queued binary logistic regression. Target: '" + safeLog(targetColumn) +
+                        "'; selected numeric features: " + safeLog(String.join(", ", features)) +
+                        "; epochs: " + epochs + "; learning rate: " + learningRate +
+                        "; split: stratified 80/20; seed: 42.");
                 connection.commit();
                 return new TrainingTicket(experimentId, runId);
             } catch (SQLException | RuntimeException exception) {

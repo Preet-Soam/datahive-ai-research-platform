@@ -28,13 +28,22 @@ public final class DatabaseInitializer implements ServletContextListener {
         try {
             Database.prepareLocalDirectory();
             initializeSchema(event);
-            seedDemoWorkspace();
-            seedDemoDataset();
+            if (demoModeEnabled()) {
+                seedDemoWorkspace();
+                seedDemoDataset();
+            } else {
+                LOGGER.info("Demo account and dataset seeding is disabled by DATAHIVE_DEMO_MODE");
+            }
             LOGGER.info(() -> "DataHive database ready: " + Database.jdbcUrl());
         } catch (Exception exception) {
             LOGGER.log(Level.SEVERE, "DataHive could not initialize its database", exception);
             throw new IllegalStateException("DataHive database initialization failed", exception);
         }
+    }
+
+    private static boolean demoModeEnabled() {
+        String value = System.getenv("DATAHIVE_DEMO_MODE");
+        return value == null || !"false".equalsIgnoreCase(value.trim());
     }
 
     private void initializeSchema(ServletContextEvent event) throws IOException, SQLException {

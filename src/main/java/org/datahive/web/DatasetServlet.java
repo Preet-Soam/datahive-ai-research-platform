@@ -85,6 +85,10 @@ public final class DatasetServlet extends HttpServlet {
             delete(request, response, user);
             return;
         }
+        if ("update".equals(action)) {
+            updateMetadata(request, response, user);
+            return;
+        }
         if (!"upload".equals(action)) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Unknown dataset action");
             return;
@@ -151,6 +155,30 @@ public final class DatasetServlet extends HttpServlet {
         } catch (SQLException exception) {
             deleteStored(storedPath);
             throw new ServletException("Could not store the uploaded dataset", exception);
+        }
+    }
+
+    private void updateMetadata(HttpServletRequest request, HttpServletResponse response, User user)
+            throws ServletException, IOException {
+        try {
+            long datasetId = positiveId(request.getParameter("datasetId"));
+            String name = clean(request.getParameter("name"));
+            String description = clean(request.getParameter("description"));
+            if (name.length() < 2 || name.length() > 160 || description.length() > 1000) {
+                response.sendRedirect(request.getContextPath() + "/datasets?view=" + datasetId + "&error=metadata");
+                return;
+            }
+            if (!datasetDao.updateMetadata(datasetId, name, description, user)) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "Dataset not found or cannot be edited");
+                return;
+            }
+            ActivityLogger.record(user, "DATASET_UPDATED", "Dataset", datasetId,
+                    "Updated dataset details for '" + name + "'.");
+            response.sendRedirect(request.getContextPath() + "/datasets?view=" + datasetId + "&notice=updated");
+        } catch (NumberFormatException exception) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid dataset identifier");
+        } catch (SQLException exception) {
+            throw new ServletException("Could not update dataset details", exception);
         }
     }
 
