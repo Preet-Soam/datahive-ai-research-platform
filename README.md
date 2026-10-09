@@ -26,36 +26,43 @@ Deploy the WAR to Apache Tomcat 10.1 or another Servlet 6.0 compatible container
 
 ## Prerequisites
 
-- JDK 21 or newer
-- Maven 3.9+
-- Apache Tomcat 10.1+
+- Windows 10 or 11, PowerShell, and an internet connection for first-time setup.
+- No separate Java, Maven, or Tomcat installation is required on Windows. The launcher downloads Java 21, Apache Maven, and Apache Tomcat into the ignored `.tools/` folder and verifies the downloaded archives before installing them.
 
 ## Run locally
 
-1. From the repository root, build the WAR:
+### Windows one-click setup
 
-   ```powershell
-   mvn clean package
-   ```
+Double-click `manage-datahive.bat` and choose **Set up, build, and run**. On first run it downloads Java 21, Apache Maven 3.10.0, and Apache Tomcat 10.1.60, verifies the archives, builds the WAR, deploys it to the bundled Tomcat, and starts the app. The first setup needs an internet connection and may take several minutes. Later runs reuse the downloaded tools. Downloads are stored in `.tools/` and are not added to Git.
 
-2. Copy `target/datahive.war` into Tomcat 10.1's `webapps` folder and start Tomcat.
-3. Open `http://localhost:8080/datahive/`.
-4. Sign in with one of the local demonstration accounts:
+Open `http://localhost:8080/datahive/` when the launcher reports that Tomcat is starting. Use **Stop DataHive** in the same menu to stop it. Port 8080 must be free; if another Tomcat or app is using it, stop that server before running DataHive.
 
-   | Role | Email | Password |
-   |---|---|---|
-   | Admin | `admin@datahive.local` | `AdminPass123!` |
-   | Researcher | `researcher@datahive.local` | `ResearcherPass123!` |
+### Manual setup on other platforms
 
-The demo accounts are inserted only when the database is empty. A clearly labeled, deterministic synthetic churn dataset is also created for the demo researcher on first initialization, so the training flow can be shown immediately. The accounts and data are for local review only; change/remove them before any public deployment. The file database is written under `data/`, and uploaded CSVs are written under `uploads/`; both locations are ignored by Git.
+Install JDK 21 or newer, Maven 3.9+, and Apache Tomcat 10.1+, then build the WAR from the project folder:
+
+```sh
+mvn clean package
+```
+
+Copy `target/datahive.war` into Tomcat's `webapps` folder, start Tomcat, and open `http://localhost:8080/datahive/`.
+
+For a fresh local database, sign in with one of the demonstration accounts:
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@datahive.local` | `AdminPass123!` |
+| Researcher | `researcher@datahive.local` | `ResearcherPass123!` |
+
+The demo accounts are inserted only when the database is empty. A clearly labeled, deterministic synthetic churn dataset is also created for the demo researcher on first initialization, so the training flow can be shown immediately. These known credentials are for local review only: do not expose them on a public deployment, and replace or remove them before deployment. The launcher downloads tools under `.tools/`; the file database is written under `data/`, and uploaded CSVs are written under `uploads/`. All three locations are ignored by Git.
 
 ## Demo walkthrough
 
 1. Sign in as the Researcher and open **Datasets**. Open **Synthetic churn baseline** to review its 160-row profile and column types.
-2. Open **Experiments**, use `churned` as the binary target header, name the experiment, and start training. Other numeric columns become model features automatically.
+2. Open **Experiments**, choose `churned` as the binary target, select the numeric input columns, name the experiment, and start training.
 3. Open the run detail to see queue/run progress, timestamped logs, and held-out accuracy, precision, recall, and F1. The experiment list shows saved results.
 4. Open **Collaboration** to review or manage a project team. The demo project begins with its researcher owner; an Administrator can create additional real accounts.
-5. Sign in as Admin to manage accounts and resource records, review the project inventory, and change the usage report window.
+5. Select two to four completed runs to compare their held-out metrics. Sign in as Admin to manage accounts and resource records, review the project inventory, and change the usage report window.
 
 ## Configuration
 
@@ -66,10 +73,33 @@ By default, the application uses a local H2 file database. Optional environment 
 - `DATAHIVE_DB_PASSWORD`
 - `DATAHIVE_DATA_DIR`
 - `DATAHIVE_UPLOAD_DIR`
+- `DATAHIVE_DEMO_MODE` (`true` by default; set to `false` to skip seeded demo accounts and data)
+- `DATAHIVE_ADMIN_INVITE_CODE` (optional; required for public self-registration of Admin accounts)
+- `DATAHIVE_GOOGLE_CLIENT_ID` (optional; enables Google Identity Services on sign-in and sign-up)
 
 `DATAHIVE_JDBC_URL` may point to a supported H2 JDBC URL. By default, DataHive stores its H2 database and uploads under the current user's `.datahive` directory, independent of Tomcat's working directory. Set `DATAHIVE_DATA_DIR` or `DATAHIVE_UPLOAD_DIR` to choose other writable folders. Use the local demo accounts only for a local review; the demo setup is not production account provisioning.
 
+Public account creation is available at `/register`. New Researcher accounts receive a personal research workspace automatically. Admin self-registration is denied unless `DATAHIVE_ADMIN_INVITE_CODE` is set to a private invite value. Google sign-in is optional: create a Google OAuth client of type **Web application**, add the app's origin (for local Tomcat, `http://localhost:8080`) as an authorized JavaScript origin, set `DATAHIVE_GOOGLE_CLIENT_ID` in the Tomcat environment, then restart Tomcat. Google ID tokens are verified on the server against Google's published signing keys, audience, issuer, expiry, verified-email claim, and a per-session nonce. No Google client secret is needed for this GIS credential flow. Existing accounts are matched by verified email; the Google role selector never changes an existing account's role.
+
+### Configure Admin self-registration on Windows
+
+Admin registration is intentionally protected by an invite code. Choose a private value and save it in your Windows user environment from PowerShell:
+
+```powershell
+setx DATAHIVE_ADMIN_INVITE_CODE "replace-with-your-private-code"
+```
+
+Replace the example value with your own code. Close and reopen the terminal, then restart Tomcat (or run `manage-datahive.bat start`) so the server receives the new setting. Select **Admin** on `/register` and enter the same code. Share it only with people who should be allowed to create administrator accounts. The invite code is not included in this README; never commit it to the repository. Researcher registration does not require an invite code.
+
 Do not commit real credentials or uploaded datasets. For public deployment, use HTTPS, set secure session-cookie options, and configure production credentials outside the repository.
+
+## Deploy to Render
+
+The repository includes a Dockerfile for a Render **Web Service**. In Render, choose **New > Web Service**, connect the GitHub repository, select **Docker** as the runtime, and deploy from the repository root. Render builds the WAR and starts Tomcat on the port supplied by Render. The Docker image sets `DATAHIVE_DEMO_MODE=false`, so it does not create the public demo Admin account with its documented password.
+
+In the service's **Environment** settings, add `DATAHIVE_ADMIN_INVITE_CODE` with a long, private value. After the first deploy, open your service's `/register` page and create your Admin account using that invite code. You may also add `DATAHIVE_GOOGLE_CLIENT_ID`; if you enable Google sign-in, add your Render service origin (for example, `https://your-service.onrender.com`) to the OAuth client's authorized JavaScript origins.
+
+The default Render filesystem is ephemeral. For a short demo, the H2 database and uploads will work but can be lost when the service restarts or redeploys. To keep them, attach a **paid persistent disk** at `/var/data` and set `DATAHIVE_DATA_DIR=/var/data/db` and `DATAHIVE_UPLOAD_DIR=/var/data/uploads` in the service environment. Free Render web services cannot attach persistent disks and may spin down when idle. See [Render Docker deployment](https://render.com/docs/docker), [persistent disks](https://render.com/docs/disks), and [free service limitations](https://render.com/docs/free).
 
 ## Project layout
 
