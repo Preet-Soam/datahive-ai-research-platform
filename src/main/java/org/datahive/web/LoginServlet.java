@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.datahive.model.User;
 import org.datahive.service.AuthService;
+import org.datahive.service.ActivityLogger;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -66,6 +67,8 @@ public final class LoginServlet extends HttpServlet {
             request.changeSessionId();
             authenticatedSession.setAttribute(AuthFilter.USER_SESSION_KEY, authenticated.get());
             authenticatedSession.setAttribute(AuthFilter.CSRF_SESSION_KEY, UUID.randomUUID().toString());
+            ActivityLogger.record(authenticated.get(), "USER_SIGNED_IN", "Session", null,
+                    "Signed in to the DataHive research platform.");
             response.sendRedirect(request.getContextPath() + "/app");
         } catch (SQLException exception) {
             LOGGER.log(Level.SEVERE, "Sign-in could not reach the database", exception);

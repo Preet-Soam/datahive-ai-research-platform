@@ -7,9 +7,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.datahive.dao.AdminDao;
+import org.datahive.dao.ActivityLogDao;
 import org.datahive.dao.ProjectDao;
 import org.datahive.model.Role;
 import org.datahive.model.User;
+import org.datahive.service.ActivityLogger;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -21,6 +23,7 @@ import java.util.Locale;
 public final class AdminServlet extends HttpServlet {
     private final AdminDao adminDao = new AdminDao();
     private final ProjectDao projectDao = new ProjectDao();
+    private final ActivityLogDao activityLogDao = new ActivityLogDao();
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -46,6 +49,9 @@ public final class AdminServlet extends HttpServlet {
             request.setAttribute("projects", projectDao.findVisibleTo(user));
             request.setAttribute("researchers", projectDao.listActiveResearchers());
             request.setAttribute("usageTotals", adminDao.usageTotals());
+            if ("activity".equals(tab)) {
+                request.setAttribute("adminActivities", activityLogDao.latest(100));
+            }
 
             List<org.datahive.model.UsageBucket> rawUsage =
                     adminDao.usageByMonth(usageMonthsToShow);
@@ -93,12 +99,12 @@ public final class AdminServlet extends HttpServlet {
         String action = request.getParameter("action");
         try {
             switch (action == null ? "" : action) {
-                case "createUser" -> createUser(request, response);
+                case "createUser" -> createUser(request, response, actor);
                 case "updateUser" -> updateUser(request, response, actor);
                 case "setUserActive" -> setUserActive(request, response, actor);
-                case "createResource" -> createResource(request, response);
-                case "updateResource" -> updateResource(request, response);
-                case "deleteResource" -> deleteResource(request, response);
+                case "createResource" -> createResource(request, response, actor);
+                case "updateResource" -> updateResource(request, response, actor);
+                case "deleteResource" -> deleteResource(request, response, actor);
                 default -> response.sendError(HttpServletResponse.SC_BAD_REQUEST,
                         "Unknown administration action");
             }
@@ -111,7 +117,7 @@ public final class AdminServlet extends HttpServlet {
         }
     }
 
-    private void createUser(HttpServletRequest request, HttpServletResponse response)
+    private void createUser(HttpServletRequest request, HttpServletResponse response, User actor)
             throws SQLException, IOException {
         String name = clean(request.getParameter("fullName"));
         String email = clean(request.getParameter("email"));
@@ -126,6 +132,8 @@ public final class AdminServlet extends HttpServlet {
         }
 
         adminDao.createUser(name, email, password, role);
+        ActivityLogger.record(actor, "USER_CREATED", "User", null,
+                "Created " + role.name().toLowerCase(Locale.ROOT) + " account for " + name + " (" + email + ").");
         response.sendRedirect(request.getContextPath()
                 + "/admin?tab=users&notice=user-created");
     }
@@ -148,6 +156,8 @@ public final class AdminServlet extends HttpServlet {
             response.sendError(HttpServletResponse.SC_NOT_FOUND, "User not found");
             return;
         }
+        ActivityLogger.record(actor, "USER_UPDATED", "User", id,
+                "Updated account details for " + name + " (" + email + ").");
 
         response.sendRedirect(request.getContextPath()
                 + "/admin?tab=users&notice=user-updated");
@@ -167,23 +177,27 @@ public final class AdminServlet extends HttpServlet {
             response.sendError(HttpServletResponse.SC_NOT_FOUND, "User not found");
             return;
         }
+        ActivityLogger.record(actor, active ? "USER_ACTIVATED" : "USER_DEACTIVATED", "User", id,
+                (active ? "Activated" : "Deactivated") + " user account #" + id + ".");
 
         response.sendRedirect(request.getContextPath()
                 + "/admin?tab=users&notice=user-updated");
     }
 
     private void createResource(HttpServletRequest request,
-                                HttpServletResponse response)
+                                HttpServletResponse response, User actor)
             throws SQLException, IOException {
         ResourceValues values = readResource(request);
         adminDao.createResource(values.name, values.type, values.capacity,
                 values.unit, values.status, values.description);
+        ActivityLogger.record(actor, "RESOURCE_CREATED", "Resource", null,
+                "Created " + values.type.toLowerCase(Locale.ROOT) + " resource '" + values.name + "'.");
         response.sendRedirect(request.getContextPath()
                 + "/admin?tab=resources&notice=resource-created");
     }
 
     private void updateResource(HttpServletRequest request,
-                                HttpServletResponse response)
+                                HttpServletResponse response, User actor)
             throws SQLException, IOException {
         long id = positiveId(request.getParameter("resourceId"));
         ResourceValues values = readResource(request);
@@ -195,20 +209,24 @@ public final class AdminServlet extends HttpServlet {
                     "Resource not found");
             return;
         }
+        ActivityLogger.record(actor, "RESOURCE_UPDATED", "Resource", id,
+                "Updated resource '" + values.name + "' (#" + id + ").");
 
         response.sendRedirect(request.getContextPath()
                 + "/admin?tab=resources&notice=resource-updated");
     }
 
     private void deleteResource(HttpServletRequest request,
-                                HttpServletResponse response)
+                                HttpServletResponse response, User actor)
             throws SQLException, IOException {
-        if (!adminDao.deleteResource(
-                positiveId(request.getParameter("resourceId")))) {
+        long id = positiveId(request.getParameter("resourceId"));
+        if (!adminDao.deleteResource(id)) {
             response.sendError(HttpServletResponse.SC_NOT_FOUND,
                     "Resource not found");
             return;
         }
+        ActivityLogger.record(actor, "RESOURCE_DELETED", "Resource", id,
+                "Deleted resource record #" + id + ".");
 
         response.sendRedirect(request.getContextPath()
                 + "/admin?tab=resources&notice=resource-deleted");
@@ -326,7 +344,7 @@ public final class AdminServlet extends HttpServlet {
         private static boolean isKnown(String tab) {
             return "overview".equals(tab) || "users".equals(tab)
                     || "resources".equals(tab) || "usage".equals(tab)
-                    || "projects".equals(tab);
+                    || "projects".equals(tab) || "activity".equals(tab);
         }
 
         private static boolean isResourceType(String type) {

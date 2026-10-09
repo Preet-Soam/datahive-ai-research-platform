@@ -10,6 +10,7 @@ import org.datahive.dao.ProjectDao;
 import org.datahive.model.Project;
 import org.datahive.model.Role;
 import org.datahive.model.User;
+import org.datahive.service.ActivityLogger;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -72,6 +73,10 @@ public final class CollaborationServlet extends HttpServlet {
             if ("add".equals(action)) changed = projectDao.addResearcher(projectId, memberId);
             else if ("remove".equals(action)) changed = projectDao.removeResearcher(projectId, memberId);
             else { response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Unknown collaboration action"); return; }
+            if (changed) ActivityLogger.record(actor,
+                    "add".equals(action) ? "MEMBER_ADDED" : "MEMBER_REMOVED", "Project", projectId,
+                    ("add".equals(action) ? "Added researcher" : "Removed researcher") + " account #" + memberId +
+                            " from project '" + project.getTitle() + "'.");
             response.sendRedirect(request.getContextPath() + "/collaboration?project=" + projectId +
                     (changed ? "&notice=updated" : "&error=member"));
         } catch (NumberFormatException exception) {

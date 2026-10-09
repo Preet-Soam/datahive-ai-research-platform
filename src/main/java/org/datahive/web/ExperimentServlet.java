@@ -15,6 +15,7 @@ import org.datahive.model.Project;
 import org.datahive.model.TrainingExperiment;
 import org.datahive.model.User;
 import org.datahive.service.TrainingService;
+import org.datahive.service.ActivityLogger;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -92,6 +93,10 @@ public final class ExperimentServlet extends HttpServlet {
                 experimentDao.fail(ticket.runId(), "The training queue is full. Please try again shortly.");
                 response.sendRedirect(request.getContextPath() + "/experiments?error=queue"); return;
             }
+            ActivityLogger.record(user, "TRAINING_QUEUED", "Training run", ticket.runId(),
+                    "Queued experiment '" + name + "' using dataset '" + dataset.getName() + "' from project '" + project.getTitle() +
+                            "'. Target: " + target + "; numeric features: " + String.join(", ", features) +
+                            "; epochs: " + epochs + "; learning rate: " + learningRate + ".");
             response.sendRedirect(request.getContextPath() + "/experiments?view=" + ticket.experimentId() + "&notice=queued");
         } catch (NumberFormatException exception) {
             response.sendRedirect(request.getContextPath() + "/experiments?error=validation");

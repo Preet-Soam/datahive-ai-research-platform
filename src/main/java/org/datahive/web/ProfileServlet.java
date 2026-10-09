@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.datahive.dao.ProfileDao;
 import org.datahive.model.User;
+import org.datahive.service.ActivityLogger;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -50,6 +51,8 @@ public final class ProfileServlet extends HttpServlet {
             User updated = new User(user.getId(), name, email, user.getRole(), true);
             HttpSession session = request.getSession(false);
             if (session != null) session.setAttribute(AuthFilter.USER_SESSION_KEY, updated);
+            ActivityLogger.record(updated, "PROFILE_UPDATED", "User", updated.getId(),
+                    "Updated profile details for " + name + ".");
             response.sendRedirect(request.getContextPath() + "/profile?notice=saved");
         } catch (SQLException exception) {
             if (exception.getSQLState() != null && exception.getSQLState().startsWith("23")) {

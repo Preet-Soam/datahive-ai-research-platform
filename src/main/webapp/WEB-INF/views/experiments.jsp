@@ -26,7 +26,7 @@
             <section class="experiment-layout <c:if test='${empty selectedExperiment}'>experiment-layout-single</c:if>">
                 <article class="panel experiment-launch-panel">
                     <div class="panel-heading"><div><p class="eyebrow">NEW RUN</p><h2>Binary logistic regression</h2></div><span class="experiment-model-icon">ML(x)</span></div>
-                    <p class="experiment-lead">A real, CPU-based baseline with fixed seed, stratified holdout, standardized numeric features, and missing-value imputation.</p>
+                    <p class="experiment-lead">Training runs on this DataHive server using its local CPU. The model learns from your CSV: it compares the selected two-class target with the other numeric columns, adjusts logistic-regression weights over the training rows, then reports metrics on held-out rows. No remote AI service or GPU is used.</p>
                     <form method="post" action="${pageContext.request.contextPath}/experiments" class="experiment-form">
                         <input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>"/>
                         <label for="experiment-name">Experiment name</label><input id="experiment-name" name="name" required minlength="3" maxlength="160" placeholder="e.g. Churn baseline  |  v1">

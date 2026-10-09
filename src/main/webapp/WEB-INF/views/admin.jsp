@@ -7,7 +7,7 @@
     <title>Administration  |  DataHive</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/app.css?v=20261008-photo-menu4">
+    <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/app.css?v=20261009-admin1">
 </head>
 <body class="app-page">
 <div class="app-shell">
@@ -15,7 +15,7 @@
     <main class="main-content">
         <header class="topbar"><button class="mobile-menu" type="button" data-menu-toggle aria-label="Toggle navigation"><span class="menu-glyph" aria-hidden="true"></span></button><div class="breadcrumbs"><span>Platform</span><span class="crumb-divider">/</span><strong>Administration</strong></div><div class="topbar-actions"><span class="environment-pill"><span></span> LOCAL WORKSPACE</span><button class="icon-button notification-trigger" type="button" data-notification-toggle aria-expanded="false" aria-controls="notification-panel" aria-label="Notifications" title="Notifications"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 8a5.5 5.5 0 0 0-11 0c0 6-2 6-2 7.5h15C17.5 14 15.5 14 15.5 8ZM8 18h4"/></svg><span class="notification-badge" data-notification-badge hidden></span></button><button type="button" class="top-avatar account-menu-trigger" data-account-menu-toggle aria-expanded="false" aria-controls="account-menu-panel" aria-label="Open account menu" title="Account menu"><span data-profile-initials><c:out value="${initials}"/></span><img class="profile-photo-image" data-profile-photo alt="" hidden></button></div></header>
         <div class="page-wrap">
-            <section class="welcome-row admin-welcome"><div><p class="eyebrow">PLATFORM CONTROL</p><h1>Administration</h1><p class="page-intro">Manage access, research resources, projects, and recorded usage.</p></div><span class="admin-scope-pill">ADMINISTRATOR</span></section>
+            <section class="welcome-row admin-welcome"><div><p class="eyebrow"><span class="admin-live-dot"></span>PLATFORM CONTROL</p><h1>Administration</h1><p class="page-intro">One place to manage platform access, research resources, and oversight.</p></div><span class="admin-scope-pill"><span>DH</span> Administrator</span></section>
 
             <c:if test="${param.error eq 'validation'}"><div class="alert alert-error" role="alert">Check the submitted fields. Names, email addresses, roles, and capacities must be valid.</div></c:if>
             <c:if test="${not empty param.notice}"><div class="alert alert-success" role="status">Your administration changes were saved.</div></c:if>
@@ -26,12 +26,22 @@
                 <a class="<c:if test='${activeTab eq "resources"}'>is-current</c:if>" href="${pageContext.request.contextPath}/admin?tab=resources">Resources <span><c:out value="${resources.size()}"/></span></a>
                 <a class="<c:if test='${activeTab eq "projects"}'>is-current</c:if>" href="${pageContext.request.contextPath}/admin?tab=projects">Projects <span><c:out value="${projects.size()}"/></span></a>
                 <a class="<c:if test='${activeTab eq "usage"}'>is-current</c:if>" href="${pageContext.request.contextPath}/admin?tab=usage">Usage reports</a>
+                <a class="<c:if test='${activeTab eq "activity"}'>is-current</c:if>" href="${pageContext.request.contextPath}/admin?tab=activity">Activity log</a>
             </nav>
 
             <c:choose>
+                <c:when test="${activeTab eq 'activity'}">
+                    <section class="admin-section-header"><div><p class="eyebrow">AUDIT TRAIL</p><h2>Platform activity</h2><p>Recent account, resource, project, dataset, collaboration, and model-training events, with the person who performed each action.</p></div><span class="quiet-label">Latest 100 events</span></section>
+                    <section class="panel project-list-panel admin-table-panel"><div class="panel-heading project-list-heading"><div><p class="eyebrow">RECENT EVENTS</p><h2>Who did what</h2></div><span class="quiet-label"><c:out value="${adminActivities.size()}"/> events shown</span></div>
+                        <div class="table-scroll"><table class="data-table admin-activity-table"><thead><tr><th>WHEN</th><th>ACTOR</th><th>ACTION</th><th>RECORD</th><th>DETAILS</th></tr></thead><tbody>
+                            <c:forEach var="activity" items="${adminActivities}"><tr><td><time class="admin-activity-time"><c:out value="${activity.createdAt}"/></time></td><td><strong class="admin-actor-name"><c:out value="${activity.actorName}"/></strong></td><td><span class="admin-activity-action"><span></span><c:out value="${activity.actionLabel}"/></span></td><td><span class="admin-record-type"><c:out value="${activity.targetType}"/><c:if test="${not empty activity.targetId}"> #<c:out value="${activity.targetId}"/></c:if></span></td><td class="admin-activity-detail"><c:out value="${activity.summary}"/></td></tr></c:forEach>
+                            <c:if test="${empty adminActivities}"><tr><td colspan="5"><div class="inline-empty">No activity has been recorded yet. Successful platform actions will appear here.</div></td></tr></c:if>
+                        </tbody></table></div>
+                    </section>
+                </c:when>
                 <c:when test="${activeTab eq 'users'}">
                     <section class="admin-section-header"><div><p class="eyebrow">ACCESS CONTROL</p><h2>User management</h2><p>Create accounts, set roles, and deactivate access when needed.</p></div></section>
-                    <details class="admin-create-panel" open>
+                    <details class="admin-create-panel">
                         <summary><span class="create-summary-icon">+</span><span><strong>Create user</strong><small>Set the name, email, role, and initial password.</small></span></summary>
                         <form class="admin-form-grid" method="post" action="${pageContext.request.contextPath}/admin?tab=users">
                             <input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>"/><input type="hidden" name="action" value="createUser"/>
