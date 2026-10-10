@@ -103,6 +103,24 @@ public final class ExperimentServlet extends HttpServlet {
         User user = (User) request.getAttribute("currentUser");
         if (!validCsrf(request)) { response.sendError(HttpServletResponse.SC_BAD_REQUEST, "The request could not be verified"); return; }
         try {
+            String action = clean(request.getParameter("action"));
+            if ("delete".equals(action)) {
+                long experimentId = positiveId(request.getParameter("experimentId"));
+                if (!experimentDao.deleteFinished(experimentId, user)) {
+                    response.sendError(HttpServletResponse.SC_CONFLICT,
+                            "Only finished experiments you own can be deleted. Active runs must finish first.");
+                    return;
+                }
+                ActivityLogger.record(user, "EXPERIMENT_DELETED", "Experiment", experimentId,
+                        "Deleted finished experiment #" + experimentId + " and its saved run history.");
+                response.sendRedirect(request.getContextPath() + "/experiments?notice=deleted");
+                return;
+            }
+            if (user.getRole() != org.datahive.model.Role.RESEARCHER) {
+                response.sendError(HttpServletResponse.SC_FORBIDDEN,
+                        "Only researchers can submit training runs. Administrators can review platform runs.");
+                return;
+            }
             String name = clean(request.getParameter("name"));
             String target = clean(request.getParameter("targetColumn"));
             String modelType = clean(request.getParameter("modelType"));

@@ -24,7 +24,7 @@
         <div class="page-wrap">
             <section class="welcome-row project-welcome">
                 <div><p class="eyebrow">YOUR RESEARCH INPUTS</p><h1>Datasets</h1><p class="page-intro">Upload a CSV, check its quality profile, and keep it attached to the right project.</p></div>
-                <details class="create-project" <c:if test="${empty selectedDataset and not empty projects}">open</c:if>>
+                <c:if test="${not isAdmin}"><details class="create-project" <c:if test="${empty selectedDataset and not empty projects}">open</c:if>>
                     <summary class="button button-primary"><span>+</span> Upload CSV</summary>
                     <form class="project-form dataset-form" method="post" enctype="multipart/form-data" action="${pageContext.request.contextPath}/datasets">
                         <input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>"/>
@@ -46,7 +46,7 @@
                         <div class="upload-note"><span aria-hidden="true">AI</span><p>CSV only  |  Up to 50 columns and 50,000 rows  |  A profile is generated when the file is saved.</p></div>
                         <div class="form-actions"><button class="button button-primary" type="submit">Upload and profile</button></div>
                     </form>
-                </details>
+                </details></c:if>
             </section>
 
             <c:if test="${param.notice eq 'uploaded'}"><div class="alert alert-success" role="status">Dataset uploaded and profiled successfully.</div></c:if>

@@ -226,9 +226,23 @@ public final class ExperimentDao {
             return new TrainingExperiment(base.getId(), base.getRunId(), base.getProjectId(), base.getProjectTitle(),
                     base.getDatasetName(), base.getName(), base.getModelName(), base.getTargetColumn(),
                     base.getEpochs(), base.getLearningRate(),
-                    base.getStatus(), base.getProgress(), base.getCreatedBy(), base.getAccuracy(),
+                    base.getStatus(), base.getProgress(), base.getCreatedBy(), base.getCreatedById(), base.getAccuracy(),
                     base.getPrecision(), base.getRecall(), base.getF1(), base.getCreatedAt(), base.getRemoteJobUrl(),
                     loadEvaluation(connection, runId), loadLogs(connection, runId));
+        }
+    }
+
+    /** Deletes a finished experiment and its saved run history for its researcher or a platform admin. */
+    public boolean deleteFinished(long experimentId, User actor) throws SQLException {
+        String ownerCondition = actor.getRole() == Role.ADMIN ? "" : " AND created_by = ?";
+        String sql = "DELETE FROM experiments WHERE id = ?" + ownerCondition +
+                " AND EXISTS (SELECT 1 FROM training_runs tr WHERE tr.experiment_id = experiments.id)" +
+                " AND NOT EXISTS (SELECT 1 FROM training_runs tr WHERE tr.experiment_id = experiments.id " +
+                "AND tr.status IN ('QUEUED', 'RUNNING'))";
+        try (Connection connection = Database.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, experimentId);
+            if (actor.getRole() != Role.ADMIN) statement.setLong(2, actor.getId());
+            return statement.executeUpdate() == 1;
         }
     }
 
@@ -331,7 +345,7 @@ public final class ExperimentDao {
         return "SELECT e.id, tr.id AS run_id, e.project_id, p.title AS project_title, " +
                 "COALESCE(d.name, '(dataset removed)') AS dataset_name, e.name, e.model_name, e.target_column, " +
                 "e.epochs, e.learning_rate, " +
-                "tr.status, tr.progress_percent, u.full_name AS created_by, " +
+                "tr.status, tr.progress_percent, u.full_name AS created_by, e.created_by AS created_by_id, " +
                 "MAX(CASE WHEN rm.metric_name = 'accuracy' THEN rm.metric_value END) AS accuracy, " +
                 "MAX(CASE WHEN rm.metric_name = 'precision' THEN rm.metric_value END) AS metric_precision, " +
                 "MAX(CASE WHEN rm.metric_name = 'recall' THEN rm.metric_value END) AS recall, " +
@@ -345,7 +359,7 @@ public final class ExperimentDao {
     private static String visibleWhere(boolean admin) { return admin ? "" : "WHERE pm.user_id = ? "; }
     private static String groupBy() {
         return "GROUP BY e.id, tr.id, e.project_id, p.title, d.name, e.name, e.model_name, e.target_column, e.epochs, e.learning_rate, " +
-                "tr.status, tr.progress_percent, u.full_name, tr.created_at, tr.remote_job_url ";
+                "tr.status, tr.progress_percent, u.full_name, e.created_by, tr.created_at, tr.remote_job_url ";
     }
 
     private static List<RunLog> loadLogs(Connection connection, long runId) throws SQLException {
@@ -472,7 +486,7 @@ public final class ExperimentDao {
                 result.getString("project_title"), result.getString("dataset_name"), result.getString("name"),
                 result.getString("model_name"), result.getString("target_column"), result.getInt("epochs"),
                 result.getDouble("learning_rate"), result.getString("status"),
-                result.getInt("progress_percent"), result.getString("created_by"), accuracy, precision, recall, f1,
+                result.getInt("progress_percent"), result.getString("created_by"), result.getLong("created_by_id"), accuracy, precision, recall, f1,
                 result.getString("created_at"), result.getString("remote_job_url"), null, logs);
     }
     private static String percent(double value) { return new java.text.DecimalFormat("0.0%").format(value); }

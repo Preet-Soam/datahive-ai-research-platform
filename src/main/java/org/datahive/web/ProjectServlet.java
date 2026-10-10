@@ -7,12 +7,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.datahive.dao.ProjectDao;
+import org.datahive.config.AppStorage;
 import org.datahive.model.Project;
 import org.datahive.model.Role;
 import org.datahive.model.User;
 import org.datahive.service.ActivityLogger;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -76,6 +78,26 @@ public final class ProjectServlet extends HttpServlet {
                 ActivityLogger.record(user, "PROJECT_ARCHIVED", "Project", id,
                         "Archived project workspace #" + id + ".");
                 response.sendRedirect(request.getContextPath() + "/projects?notice=archived");
+                return;
+            }
+            if ("delete".equals(action)) {
+                long id = positiveId(request.getParameter("projectId"));
+                var storedFiles = projectDao.delete(id, user);
+                if (storedFiles.isEmpty()) {
+                    response.sendRedirect(request.getContextPath() + "/projects?error=projectBusy");
+                    return;
+                }
+                Path uploadRoot = AppStorage.uploadDirectory();
+                for (String filename : storedFiles.get()) {
+                    Path file = uploadRoot.resolve(filename).normalize();
+                    if (file.startsWith(uploadRoot)) {
+                        try { java.nio.file.Files.deleteIfExists(file); }
+                        catch (java.io.IOException ignored) { }
+                    }
+                }
+                ActivityLogger.record(user, "PROJECT_DELETED", "Project", id,
+                        "Deleted project workspace #" + id + " and its datasets and experiment history.");
+                response.sendRedirect(request.getContextPath() + "/projects?notice=deleted");
                 return;
             }
 

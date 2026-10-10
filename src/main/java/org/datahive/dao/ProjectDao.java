@@ -14,6 +14,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Collections;
 
 public final class ProjectDao {
     private static final String PROJECT_COLUMNS = "p.id, p.owner_id, p.title, p.description, p.status, " +
@@ -210,6 +211,53 @@ public final class ProjectDao {
                 statement.setLong(2, actor.getId());
             }
             return statement.executeUpdate() == 1;
+        }
+    }
+
+    /** Permanently removes a project and its dependent research data, but never while a run is active. */
+    public Optional<List<String>> delete(long projectId, User actor) throws SQLException {
+        String ownerCondition = actor.getRole() == Role.ADMIN ? "" : " AND owner_id = ?";
+        try (Connection connection = Database.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                boolean exists;
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "SELECT id FROM projects WHERE id = ?" + ownerCondition + " FOR UPDATE")) {
+                    statement.setLong(1, projectId);
+                    if (actor.getRole() != Role.ADMIN) statement.setLong(2, actor.getId());
+                    try (ResultSet result = statement.executeQuery()) { exists = result.next(); }
+                }
+                if (!exists) { connection.rollback(); return Optional.empty(); }
+
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "SELECT 1 FROM training_runs tr JOIN experiments e ON e.id = tr.experiment_id " +
+                                "WHERE e.project_id = ? AND tr.status IN ('QUEUED', 'RUNNING') FETCH FIRST 1 ROW ONLY")) {
+                    statement.setLong(1, projectId);
+                    try (ResultSet result = statement.executeQuery()) {
+                        if (result.next()) { connection.rollback(); return Optional.empty(); }
+                    }
+                }
+
+                List<String> storedFiles = new ArrayList<>();
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "SELECT stored_filename FROM datasets WHERE project_id = ?")) {
+                    statement.setLong(1, projectId);
+                    try (ResultSet result = statement.executeQuery()) {
+                        while (result.next()) storedFiles.add(result.getString(1));
+                    }
+                }
+                try (PreparedStatement statement = connection.prepareStatement("DELETE FROM projects WHERE id = ?")) {
+                    statement.setLong(1, projectId);
+                    if (statement.executeUpdate() != 1) { connection.rollback(); return Optional.empty(); }
+                }
+                connection.commit();
+                return Optional.of(Collections.unmodifiableList(storedFiles));
+            } catch (SQLException exception) {
+                connection.rollback();
+                throw exception;
+            } finally {
+                connection.setAutoCommit(true);
+            }
         }
     }
 

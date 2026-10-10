@@ -57,8 +57,10 @@
             <c:if test="${param.notice eq 'created'}"><div class="alert alert-success" role="status">Project created and ready for research.</div></c:if>
             <c:if test="${param.notice eq 'updated'}"><div class="alert alert-success" role="status">Project details updated.</div></c:if>
             <c:if test="${param.notice eq 'archived'}"><div class="alert alert-success" role="status">Project archived. Its records remain available for review.</div></c:if>
+            <c:if test="${param.notice eq 'deleted'}"><div class="alert alert-success" role="status">Project, its uploaded files, and its saved experiment history were deleted.</div></c:if>
             <c:if test="${param.error eq 'validation'}"><div class="alert alert-error" role="alert">Check the project name and description, then try again.</div></c:if>
             <c:if test="${param.error eq 'owner'}"><div class="alert alert-error" role="alert">Choose an active researcher as the project owner.</div></c:if>
+            <c:if test="${param.error eq 'projectBusy'}"><div class="alert alert-error" role="alert">This project still has a queued or running model job. Wait for it to finish before deleting the project.</div></c:if>
 
             <section class="project-summary-row" aria-label="Project totals">
                 <div class="project-summary"><span class="summary-icon summary-icon-blue">PR</span><span><strong><c:out value="${projects.size()}"/></strong><small>Visible projects</small></span></div>
@@ -96,6 +98,14 @@
                                                     <input type="hidden" name="action" value="archive"/>
                                                     <input type="hidden" name="projectId" value="<c:out value='${project.id}'/>"/>
                                                     <button class="text-action text-action-muted" type="submit">Archive</button>
+                                                </form>
+                                            </c:if>
+                                            <c:if test="${isAdmin or project.ownerId eq currentUser.id}">
+                                                <form method="post" action="${pageContext.request.contextPath}/projects" data-confirm="Permanently delete this project, all attached datasets, uploaded CSV files, experiments, and run history? This cannot be undone.">
+                                                    <input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>"/>
+                                                    <input type="hidden" name="action" value="delete"/>
+                                                    <input type="hidden" name="projectId" value="<c:out value='${project.id}'/>"/>
+                                                    <button class="text-action text-action-muted" type="submit">Delete</button>
                                                 </form>
                                             </c:if>
                                             <c:if test="${not isAdmin and project.ownerId ne currentUser.id}"><span class="member-tag">Member</span></c:if>

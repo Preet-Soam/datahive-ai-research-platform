@@ -16,6 +16,7 @@ public final class TrainingExperiment {
     private final String status;
     private final int progress;
     private final String createdBy;
+    private final long createdById;
     private final double accuracy;
     private final double precision;
     private final double recall;
@@ -28,13 +29,13 @@ public final class TrainingExperiment {
     public TrainingExperiment(long id, long runId, long projectId, String projectTitle, String datasetName,
                               String name, String modelName, String targetColumn, int epochs, double learningRate,
                               String status, int progress,
-                              String createdBy, double accuracy, double precision, double recall, double f1,
+                              String createdBy, long createdById, double accuracy, double precision, double recall, double f1,
                               String createdAt, String remoteJobUrl, TrainingEvaluation evaluation, List<RunLog> logs) {
         this.id = id; this.runId = runId; this.projectId = projectId; this.projectTitle = projectTitle;
         this.datasetName = datasetName; this.name = name; this.modelName = modelName;
         this.targetColumn = targetColumn; this.epochs = epochs; this.learningRate = learningRate;
         this.status = status; this.progress = progress;
-        this.createdBy = createdBy; this.accuracy = accuracy; this.precision = precision;
+        this.createdBy = createdBy; this.createdById = createdById; this.accuracy = accuracy; this.precision = precision;
         this.recall = recall; this.f1 = f1; this.createdAt = createdAt; this.remoteJobUrl = remoteJobUrl;
         this.evaluation = evaluation;
         this.logs = logs == null ? List.of() : List.copyOf(logs);
@@ -55,6 +56,7 @@ public final class TrainingExperiment {
     public int getProgress() { return progress; }
     public boolean isLive() { return "QUEUED".equals(status) || "RUNNING".equals(status); }
     public String getCreatedBy() { return createdBy; }
+    public long getCreatedById() { return createdById; }
     public double getAccuracy() { return accuracy; }
     public double getPrecision() { return precision; }
     public double getRecall() { return recall; }
