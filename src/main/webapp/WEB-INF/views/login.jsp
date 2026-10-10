@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/app.css?v=20261009-auth1">
+    <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/app.css?v=20261010-polish2">
 </head>
 <body class="login-page">
 <main class="login-layout">
@@ -37,7 +37,7 @@
             </div>
             <p class="eyebrow">WELCOME BACK</p>
             <h2 id="login-heading">Sign in to DataHive</h2>
-            <p class="login-intro">Pick up where your research left off.</p>
+            <p class="login-intro">Sign in with your account. New to DataHive? Continue with Google and we’ll help you set up a workspace.</p>
 
             <c:if test="${not empty loginError}">
                 <div class="alert alert-error" role="alert"><c:out value="${loginError}"/></div>
@@ -46,7 +46,8 @@
                 <div class="alert alert-success" role="status">You have been signed out.</div>
             </c:if>
             <c:if test="${param.error eq 'google'}"><div class="alert alert-error" role="alert">Google could not verify this sign-in. Please try again.</div></c:if>
-            <c:if test="${param.error eq 'googleAccount'}"><div class="alert alert-error" role="alert">No DataHive account is linked to this Google address yet. Create an account first.</div></c:if>
+            <c:if test="${param.error eq 'googleAccount'}"><div class="alert alert-error" role="alert">We couldn’t match this Google account to DataHive. Try Continue with Google to create an account.</div></c:if>
+            <c:if test="${param.error eq 'googleExists'}"><div class="alert alert-error" role="alert">An account with this Google email already exists. Continue with Google to sign in.</div></c:if>
             <c:if test="${param.error eq 'disabled'}"><div class="alert alert-error" role="alert">This account is inactive. Contact your DataHive administrator.</div></c:if>
 
             <form class="login-form" method="post" action="${pageContext.request.contextPath}/login">
@@ -74,9 +75,9 @@
 
             <div class="auth-divider"><span>or continue with</span></div>
             <c:choose><c:when test="${not empty googleClientId}">
-                <form class="google-auth-form" method="post" action="${pageContext.request.contextPath}/google-auth" data-google-auth data-google-mode="login" data-google-client-id="<c:out value='${googleClientId}'/>" data-google-nonce="<c:out value='${googleNonce}'/>">
-                    <input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>"><input type="hidden" name="mode" value="login"><input type="hidden" name="credential" value="">
-                    <div class="google-button-slot" data-google-button aria-label="Sign in with Google"></div>
+                <form class="google-auth-form" method="post" action="${pageContext.request.contextPath}/google-auth" data-google-auth data-google-mode="continue" data-google-client-id="<c:out value='${googleClientId}'/>" data-google-nonce="<c:out value='${googleNonce}'/>">
+                    <input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>"><input type="hidden" name="mode" value="continue"><input type="hidden" name="credential" value="">
+                    <div class="google-button-slot" data-google-button aria-label="Continue with Google"></div>
                 </form>
             </c:when><c:otherwise><div class="google-auth-unavailable"><button class="google-disabled-button" type="button" disabled><span aria-hidden="true">G</span>Continue with Google</button><small>Connect a Google OAuth client ID to enable Google sign-in.</small></div></c:otherwise></c:choose>
 
@@ -91,6 +92,6 @@
     </section>
 </main>
 <script src="${pageContext.request.contextPath}/assets/js/app.js?v=20261008-photo-menu4" defer></script>
-<c:if test="${not empty googleClientId}"><script src="https://accounts.google.com/gsi/client" async defer></script><script src="${pageContext.request.contextPath}/assets/js/google-auth.js?v=20261009-auth1" defer></script></c:if>
+<c:if test="${not empty googleClientId}"><script src="https://accounts.google.com/gsi/client" async defer></script><script src="${pageContext.request.contextPath}/assets/js/google-auth.js?v=20261010-unified-auth1" defer></script></c:if>
 </body>
 </html>

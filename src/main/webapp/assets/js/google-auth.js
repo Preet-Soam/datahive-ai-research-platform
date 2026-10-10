@@ -30,7 +30,8 @@
             type: "standard",
             theme: "outline",
             size: "large",
-            text: form.dataset.googleMode === "register" ? "signup_with" : "signin_with",
+            text: form.dataset.googleMode === "register" ? "signup_with" :
+                form.dataset.googleMode === "continue" ? "continue_with" : "signin_with",
             shape: "rectangular",
             logo_alignment: "left",
             width: Math.min(400, Math.max(260, Math.round(slot.getBoundingClientRect().width)))

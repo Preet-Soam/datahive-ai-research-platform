@@ -22,6 +22,8 @@ import java.util.regex.Pattern;
 @WebServlet(name = "RegisterServlet", urlPatterns = "/register")
 public final class RegisterServlet extends HttpServlet {
     private static final Pattern EMAIL = Pattern.compile("(?i)^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\\.[A-Z]{2,}$");
+    static final String GOOGLE_PENDING_NAME = "datahiveGooglePendingName";
+    static final String GOOGLE_PENDING_EMAIL = "datahiveGooglePendingEmail";
     private final UserDao userDao = new UserDao();
 
     @Override
@@ -36,6 +38,13 @@ public final class RegisterServlet extends HttpServlet {
         session.setAttribute(AuthFilter.CSRF_SESSION_KEY, UUID.randomUUID().toString());
         session.setAttribute("googleNonce", UUID.randomUUID().toString());
         preparePage(request, session);
+        String googleName = (String) session.getAttribute(GOOGLE_PENDING_NAME);
+        String googleEmail = (String) session.getAttribute(GOOGLE_PENDING_EMAIL);
+        if (googleEmail != null) {
+            request.setAttribute("googleSignup", true);
+            request.setAttribute("fullName", googleName);
+            request.setAttribute("email", googleEmail);
+        }
         request.getRequestDispatcher("/WEB-INF/views/register.jsp").forward(request, response);
     }
 
@@ -51,10 +60,19 @@ public final class RegisterServlet extends HttpServlet {
             return;
         }
 
+        String googleName = (String) session.getAttribute(GOOGLE_PENDING_NAME);
+        String googleEmail = (String) session.getAttribute(GOOGLE_PENDING_EMAIL);
+        if (googleEmail != null) {
+            completeGoogleSignup(request, response, session, googleName, googleEmail);
+            return;
+        }
+
         String name = clean(request.getParameter("fullName"));
         String email = clean(request.getParameter("email")).toLowerCase(Locale.ROOT);
         String password = request.getParameter("password");
         String confirmation = request.getParameter("confirmPassword");
+        name = clean(name);
+        if (name.isBlank()) name = clean(request.getParameter("fullName"));
         Role role = parseRole(request.getParameter("role"));
         String issue = null;
         if (name.length() < 2 || name.length() > 120 || !EMAIL.matcher(email).matches() || email.length() > 190) {
@@ -104,6 +122,45 @@ public final class RegisterServlet extends HttpServlet {
         request.setAttribute("googleNonce", session.getAttribute("googleNonce"));
         request.setAttribute("googleClientId", System.getenv("DATAHIVE_GOOGLE_CLIENT_ID"));
         request.setAttribute("hasAdminInvite", nonBlank(System.getenv("DATAHIVE_ADMIN_INVITE_CODE")));
+    }
+
+    private void completeGoogleSignup(HttpServletRequest request, HttpServletResponse response,
+                                      HttpSession session, String name, String email)
+            throws ServletException, IOException {
+        Role role = parseRole(request.getParameter("role"));
+        if (name.length() < 2 || name.length() > 120 || !EMAIL.matcher(email).matches() || email.length() > 190) {
+            session.removeAttribute(GOOGLE_PENDING_NAME);
+            session.removeAttribute(GOOGLE_PENDING_EMAIL);
+            response.sendRedirect(request.getContextPath() + "/login?error=google");
+            return;
+        }
+        if (role == null || (role == Role.ADMIN && !validAdminCode(request.getParameter("adminInviteCode")))) {
+            request.setAttribute("registerError", "Choose a workspace role. Admin accounts also need a valid invite code.");
+            request.setAttribute("selectedRole", request.getParameter("role"));
+            request.setAttribute("googleSignup", true);
+            request.setAttribute("fullName", name);
+            request.setAttribute("email", email);
+            preparePage(request, session);
+            request.getRequestDispatcher("/WEB-INF/views/register.jsp").forward(request, response);
+            return;
+        }
+
+        try {
+            User created = userDao.createAccount(name, email,
+                    org.datahive.security.PasswordHasher.hash(UUID.randomUUID().toString()), role);
+            ActivityLogger.record(created, "USER_REGISTERED", "Account", created.getId(),
+                    "Created a DataHive account with Google as " + role.name().toLowerCase(Locale.ROOT) + ".");
+            establishSession(request, created);
+            response.sendRedirect(request.getContextPath() + "/app?welcome=1");
+        } catch (SQLException exception) {
+            if ("23505".equals(exception.getSQLState())) {
+                session.removeAttribute(GOOGLE_PENDING_NAME);
+                session.removeAttribute(GOOGLE_PENDING_EMAIL);
+                response.sendRedirect(request.getContextPath() + "/login?error=googleExists");
+                return;
+            }
+            throw new ServletException("Could not create your Google-linked DataHive account", exception);
+        }
     }
 
     static boolean validAdminCode(String submitted) {

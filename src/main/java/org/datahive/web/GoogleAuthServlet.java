@@ -32,7 +32,7 @@ public final class GoogleAuthServlet extends HttpServlet {
         String csrf = session == null ? null : (String) session.getAttribute(AuthFilter.CSRF_SESSION_KEY);
         String nonce = session == null ? null : (String) session.getAttribute("googleNonce");
         if (csrf == null || !csrf.equals(request.getParameter("csrfToken")) || nonce == null ||
-                !("login".equals(mode) || "register".equals(mode))) {
+                !("login".equals(mode) || "continue".equals(mode) || "register".equals(mode))) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, "The Google sign-in form expired. Reload and try again.");
             return;
         }
@@ -48,20 +48,26 @@ public final class GoogleAuthServlet extends HttpServlet {
 
         try {
             var existing = userDao.findForLogin(identity.email());
-            if ("login".equals(mode)) {
-                if (existing.isEmpty()) {
-                    response.sendRedirect(request.getContextPath() + "/login?error=googleAccount");
+            if ("login".equals(mode) || "continue".equals(mode)) {
+                if (existing.isPresent()) {
+                    User user = existing.get().user();
+                    if (!user.isActive()) {
+                        response.sendRedirect(request.getContextPath() + "/login?error=disabled");
+                        return;
+                    }
+                    RegisterServlet.establishSession(request, user);
+                    ActivityLogger.record(user, "USER_SIGNED_IN", "Session", null,
+                            "Signed in to the DataHive research platform with Google.");
+                    response.sendRedirect(request.getContextPath() + "/app");
                     return;
                 }
-                User user = existing.get().user();
-                if (!user.isActive()) {
-                    response.sendRedirect(request.getContextPath() + "/login?error=disabled");
+                if ("continue".equals(mode)) {
+                    session.setAttribute(RegisterServlet.GOOGLE_PENDING_NAME, identity.name());
+                    session.setAttribute(RegisterServlet.GOOGLE_PENDING_EMAIL, identity.email());
+                    response.sendRedirect(request.getContextPath() + "/register?google=role");
                     return;
                 }
-                RegisterServlet.establishSession(request, user);
-                ActivityLogger.record(user, "USER_SIGNED_IN", "Session", null,
-                        "Signed in to the DataHive research platform with Google.");
-                response.sendRedirect(request.getContextPath() + "/app");
+                response.sendRedirect(request.getContextPath() + "/login?error=googleAccount");
                 return;
             }
 
