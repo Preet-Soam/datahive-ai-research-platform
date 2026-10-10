@@ -19,6 +19,7 @@ import org.datahive.service.TrainingService;
 import org.datahive.service.ActivityLogger;
 import org.datahive.service.CsvProfiler;
 import org.datahive.service.ModelTrainer;
+import org.datahive.service.HuggingFaceJobsClient;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -40,6 +41,16 @@ public final class ExperimentServlet extends HttpServlet {
             throws ServletException, IOException {
         User user = (User) request.getAttribute("currentUser");
         try {
+            if ("report".equals(request.getParameter("download"))) {
+                TrainingExperiment report = experimentDao.findVisible(positiveId(request.getParameter("view")), user);
+                if (report == null) { response.sendError(HttpServletResponse.SC_NOT_FOUND, "Experiment not found"); return; }
+                if (!"COMPLETED".equals(report.getStatus())) {
+                    response.sendError(HttpServletResponse.SC_CONFLICT, "Only completed experiments have a report");
+                    return;
+                }
+                writeReport(report, response);
+                return;
+            }
             HttpSession session = request.getSession(false);
             if (session != null) {
                 Object preflightError = session.getAttribute("trainingPreflightError");
@@ -49,6 +60,7 @@ public final class ExperimentServlet extends HttpServlet {
                 }
             }
             request.setAttribute("datasets", datasetDao.findVisibleTo(user));
+            request.setAttribute("huggingFaceStatus", new HuggingFaceJobsClient().status());
             List<TrainingExperiment> experiments = experimentDao.listVisible(user);
             request.setAttribute("experiments", experiments);
             request.setAttribute("activePage", "experiments");
@@ -94,11 +106,13 @@ public final class ExperimentServlet extends HttpServlet {
             String name = clean(request.getParameter("name"));
             String target = clean(request.getParameter("targetColumn"));
             String modelType = clean(request.getParameter("modelType"));
+            String executionBackend = clean(request.getParameter("executionBackend"));
             int epochs = Integer.parseInt(request.getParameter("epochs"));
             double learningRate = Double.parseDouble(request.getParameter("learningRate"));
             Dataset dataset = datasetDao.findVisibleById(positiveId(request.getParameter("datasetId")), user).orElse(null);
             if (dataset == null || name.length() < 3 || name.length() > 160 || target.isBlank() || target.length() > 190 ||
                     (!ModelTrainer.LOGISTIC.equals(modelType) && !ModelTrainer.DECISION_TREE.equals(modelType)) ||
+                    (!"LOCAL_CPU".equals(executionBackend) && !HuggingFaceJobsClient.BACKEND.equals(executionBackend)) ||
                     (epochs != 60 && epochs != 120 && epochs != 180) ||
                     !Double.isFinite(learningRate) || (learningRate != 0.05 && learningRate != 0.12 && learningRate != 0.2)) {
                 response.sendRedirect(request.getContextPath() + "/experiments?error=validation"); return;
@@ -121,6 +135,14 @@ public final class ExperimentServlet extends HttpServlet {
             if (!targetExists || features.isEmpty()) {
                 response.sendRedirect(request.getContextPath() + "/experiments?error=features"); return;
             }
+            if (HuggingFaceJobsClient.BACKEND.equals(executionBackend)) {
+                HuggingFaceJobsClient.Status status = new HuggingFaceJobsClient().status();
+                if (!status.ready()) {
+                    request.getSession(true).setAttribute("trainingPreflightError", status.message());
+                    response.sendRedirect(request.getContextPath() + "/experiments?error=remoteConfiguration");
+                    return;
+                }
+            }
             Path uploadRoot = AppStorage.uploadDirectory();
             Path datasetFile = uploadRoot.resolve(dataset.getStoredFilename()).normalize();
             if (!datasetFile.startsWith(uploadRoot)) {
@@ -135,23 +157,31 @@ public final class ExperimentServlet extends HttpServlet {
                 return;
             }
             ExperimentDao.TrainingTicket ticket = experimentDao.createAndQueue(project.getId(), dataset.getId(),
-                    name, target, modelType, features, epochs, learningRate, user.getId());
+                    name, target, modelType, features, epochs, learningRate, user.getId(), executionBackend);
             TrainingService service = TrainingService.from(getServletContext());
             if (service == null) {
                 experimentDao.fail(ticket.runId(), "The local training queue is unavailable.");
                 throw new ServletException("Training service was not initialized");
             }
-            try { service.enqueue(ticket.runId(), project.getId(), dataset.getId(), user.getId(), dataset,
-                    modelType, target, features, epochs, learningRate); }
+            try {
+                if (HuggingFaceJobsClient.BACKEND.equals(executionBackend)) {
+                    service.enqueueRemote(ticket.runId(), dataset, name, modelType, target, features,
+                            epochs, learningRate, request.getContextPath());
+                } else {
+                    service.enqueue(ticket.runId(), project.getId(), dataset.getId(), user.getId(), dataset,
+                            modelType, target, features, epochs, learningRate);
+                }
+            }
             catch (java.util.concurrent.RejectedExecutionException | IllegalArgumentException exception) {
                 experimentDao.fail(ticket.runId(), "The training queue is full. Please try again shortly.");
                 response.sendRedirect(request.getContextPath() + "/experiments?error=queue"); return;
             }
             ActivityLogger.record(user, "TRAINING_QUEUED", "Training run", ticket.runId(),
                     "Queued experiment '" + name + "' using dataset '" + dataset.getName() + "' from project '" + project.getTitle() +
-                            "'. Target: " + target + "; numeric features: " + String.join(", ", features) +
+                    "'. Execution: " + executionBackend + ". Target: " + target + "; numeric features: " + String.join(", ", features) +
                             "; epochs: " + epochs + "; learning rate: " + learningRate + ".");
-            response.sendRedirect(request.getContextPath() + "/experiments?view=" + ticket.experimentId() + "&notice=queued");
+            response.sendRedirect(request.getContextPath() + "/experiments?view=" + ticket.experimentId() + "&notice=queued" +
+                    (HuggingFaceJobsClient.BACKEND.equals(executionBackend) ? "&backend=remote" : ""));
         } catch (NumberFormatException exception) {
             response.sendRedirect(request.getContextPath() + "/experiments?error=validation");
         } catch (SQLException exception) {
@@ -169,6 +199,34 @@ public final class ExperimentServlet extends HttpServlet {
     }
     private static long positiveId(String value) { long id = Long.parseLong(value); if (id < 1) throw new NumberFormatException(); return id; }
     private static String clean(String value) { return value == null ? "" : value.trim(); }
+    private static void writeReport(TrainingExperiment report, HttpServletResponse response) throws IOException {
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("text/csv");
+        response.setHeader("Content-Disposition", "attachment; filename=\"datahive-run-" + report.getRunId() + ".csv\"");
+        StringBuilder csv = new StringBuilder("field,value\r\n");
+        appendCsvRow(csv, "Run ID", Long.toString(report.getRunId()));
+        appendCsvRow(csv, "Experiment", report.getName());
+        appendCsvRow(csv, "Project", report.getProjectTitle());
+        appendCsvRow(csv, "Dataset", report.getDatasetName());
+        appendCsvRow(csv, "Model", report.getModelName());
+        appendCsvRow(csv, "Target", report.getTargetColumn());
+        appendCsvRow(csv, "Status", report.getStatus());
+        appendCsvRow(csv, "Remote Job URL", report.getRemoteJobUrl());
+        appendCsvRow(csv, "Accuracy", Double.toString(report.getAccuracy()));
+        appendCsvRow(csv, "Precision", Double.toString(report.getPrecision()));
+        appendCsvRow(csv, "Recall", Double.toString(report.getRecall()));
+        appendCsvRow(csv, "F1", Double.toString(report.getF1()));
+        appendCsvRow(csv, "Created at", report.getCreatedAt());
+        response.getWriter().write(csv.toString());
+    }
+    private static void appendCsvRow(StringBuilder csv, String key, String value) {
+        csv.append(csvCell(key)).append(',').append(csvCell(value)).append("\r\n");
+    }
+    private static String csvCell(String value) {
+        String safe = value == null ? "" : value;
+        if (!safe.isEmpty() && "=+-@\t\r".indexOf(safe.charAt(0)) >= 0) safe = "'" + safe;
+        return "\"" + safe.replace("\"", "\"\"") + "\"";
+    }
     private static String initials(String name) {
         if (name == null || name.isBlank()) return "DH";
         String[] parts = name.trim().split("\\s+");

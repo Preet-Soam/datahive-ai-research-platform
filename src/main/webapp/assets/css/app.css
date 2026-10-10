@@ -346,6 +346,10 @@ a.nav-link:hover { color: #fff; background: rgba(255,255,255,.07); }
 .experiment-form input, .experiment-form select, .invite-panel select, .profile-form input { width: 100%; min-height: 37px; padding: 9px 10px; border: 1px solid #e0e6ef; border-radius: 7px; outline: 0; color: #33435e; background: #fff; font: 500 9px 'DM Sans', sans-serif; }
 .experiment-form input:focus, .experiment-form select:focus, .invite-panel select:focus, .profile-form input:focus { border-color: #7096f0; box-shadow: 0 0 0 3px rgba(53, 109, 243, .1); }
 .experiment-form .field-hint { margin: 7px 1px 13px; color: #929daf; font-size: 8px; line-height: 1.55; }
+.remote-training-note { display: flex; flex-direction: column; gap: 3px; margin: 8px 0 13px; padding: 10px 11px; border: 1px solid #e5eaf3; border-radius: 8px; color: #77849a; background: #fafbfd; font-size: 8px; line-height: 1.5; }
+.remote-training-note strong { color: #50617b; font-size: 9px; }
+.remote-training-note.is-selected { border-color: #cfdcff; color: #526fa9; background: #f3f6ff; }
+.remote-training-note.is-selected strong { color: #3562bd; }
 .training-parameter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
 .training-parameter-grid label { margin-top: 5px; }
 .experiment-method-note { display: flex; align-items: flex-start; gap: 9px; padding: 9px 0; border-top: 1px solid #f0f2f6; }
@@ -364,6 +368,10 @@ a.nav-link:hover { color: #fff; background: rgba(255,255,255,.07); }
 .experiment-meta strong { color: #4c607f; }
 .run-progress-row { display: flex; align-items: center; justify-content: space-between; margin: 14px 19px 5px; }
 .run-progress-row > strong { color: #71809a; font-size: 9px; }
+.remote-job-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 11px 19px 0; padding: 10px 12px; border: 1px solid #e3eaf6; border-radius: 8px; background: #f8faff; }
+.remote-job-link > span { color: #8a96aa; font-size: 8px; font-weight: 700; letter-spacing: .08em; }
+.remote-job-link a { color: #3562bd; font-size: 9px; font-weight: 700; text-decoration: none; }
+.remote-job-link a:hover { text-decoration: underline; }
 .progress-track, .mini-progress { height: 6px; margin: 0 19px; overflow: hidden; border-radius: 8px; background: #edf1f7; }
 .progress-track > span, .mini-progress > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #5985f0, #3bc49a); transition: width .3s ease; }
 .status-queued { color: #7b6b9e; background: #f5f0fb; }

@@ -9,6 +9,8 @@
     const modelHint = document.querySelector("[data-model-hint]");
     const targetHint = document.querySelector("[data-target-hint]");
     const reproducibilityNote = document.querySelector("[data-reproducibility-note]");
+    const backendSelect = document.querySelector("#execution-backend");
+    const remoteNote = document.querySelector("[data-remote-training-note]");
     if (!datasetSelect || !targetSelect || !featureList || !catalog) return;
 
     const numericTypes = new Set(["INTEGER", "DECIMAL"]);
@@ -81,14 +83,25 @@
         if (targetHint) targetHint.textContent = tree
             ? "Choose the label column. The decision tree can classify two or more classes. Numeric fields can be selected below as model inputs."
             : "Choose the label column. Logistic regression requires exactly two classes, such as yes/no. Numeric fields can be selected below as model inputs.";
-        if (reproducibilityNote) reproducibilityNote.innerHTML = tree
+        if (reproducibilityNote && backendSelect?.value !== "HUGGINGFACE_JOBS") reproducibilityNote.innerHTML = tree
             ? "<strong>Maximum tree depth: 6</strong><small>Depth is capped to keep the model compact and reduce overfitting.</small>"
             : "<strong>Seed 42</strong><small>Repeating the same setup keeps the split deterministic.</small>";
+    }
+
+    function updateBackend() {
+        const remote = backendSelect?.value === "HUGGINGFACE_JOBS";
+        if (remoteNote) remoteNote.classList.toggle("is-selected", remote);
+        if (reproducibilityNote && remote) {
+            reproducibilityNote.innerHTML = "<strong>Private remote workflow</strong><small>Your deployment must provide a Hugging Face token, namespace, and public HTTPS callback before a remote job can be submitted.</small>";
+        } else {
+            updateModel();
+        }
     }
 
     datasetSelect.addEventListener("change", updateDataset);
     targetSelect.addEventListener("change", () => renderFeatures(targetSelect.value));
     modelSelect?.addEventListener("change", updateModel);
+    backendSelect?.addEventListener("change", updateBackend);
     updateDataset();
-    updateModel();
+    updateBackend();
 })();

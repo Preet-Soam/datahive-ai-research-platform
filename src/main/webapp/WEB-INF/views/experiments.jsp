@@ -17,20 +17,26 @@
         <div class="page-wrap">
             <section class="welcome-row"><div><p class="eyebrow">TRAIN  |  MEASURE  |  REPEAT</p><h1>Experiments</h1><p class="page-intro">Train reproducible supervised classification models on project datasets, review held-out results, and compare experiments.</p></div><span class="model-chip">LOCAL CPU  |  CLASSIFICATION</span></section>
 
-            <c:if test="${param.notice eq 'queued'}"><div class="alert alert-success" role="status">The training run was added to the local queue. Its status and results will update here.</div></c:if>
+            <c:if test="${param.notice eq 'queued' and param.backend eq 'remote'}"><div class="alert alert-success" role="status">The private dataset upload and Hugging Face Job were queued. This page will show the Job link, status, and results as they arrive.</div></c:if>
+            <c:if test="${param.notice eq 'queued' and param.backend ne 'remote'}"><div class="alert alert-success" role="status">The training run was added to the local queue. Its status and results will update here.</div></c:if>
             <c:if test="${param.error eq 'validation'}"><div class="alert alert-error" role="alert">Enter a valid experiment name, choose a dataset, and provide the exact CSV target header.</div></c:if>
             <c:if test="${param.error eq 'features'}"><div class="alert alert-error" role="alert">Choose a valid target column and at least one numeric input feature. The target must contain exactly two classes.</div></c:if>
             <c:if test="${param.error eq 'project'}"><div class="alert alert-error" role="alert">Training requires a dataset attached to an active project you can access.</div></c:if>
             <c:if test="${param.error eq 'queue'}"><div class="alert alert-error" role="alert">The training queue is busy. Try again after a run finishes.</div></c:if>
             <c:if test="${param.error eq 'trainingData' and not empty trainingPreflightError}"><div class="alert alert-error" role="alert"><strong>This dataset is not ready for training:</strong> <c:out value="${trainingPreflightError}"/>. Update the CSV or adjust the target and features, then try again.</div></c:if>
+            <c:if test="${param.error eq 'remoteConfiguration' and not empty trainingPreflightError}"><div class="alert alert-error" role="alert"><strong>Hugging Face Jobs is not ready:</strong> <c:out value="${trainingPreflightError}"/></div></c:if>
 
             <section class="experiment-layout <c:if test='${empty selectedExperiment}'>experiment-layout-single</c:if>">
                 <article class="panel experiment-launch-panel">
                     <div class="panel-heading"><div><p class="eyebrow">NEW RUN</p><h2>Configure a model experiment</h2></div><span class="experiment-model-icon">ML(x)</span></div>
-                    <p class="experiment-lead">Train on this server’s CPU using your project CSV. Choose a model, target, and numeric features; DataHive creates a reproducible stratified holdout split and saves metrics and run logs. Current built-in models are logistic regression and decision trees; no cloud AI service or GPU is required.</p>
+                    <p class="experiment-lead">Choose a local CPU baseline or prepare a private Hugging Face Jobs run. DataHive validates the dataset, target, and numeric features before any training starts and records reproducible run details.</p>
                     <form method="post" action="${pageContext.request.contextPath}/experiments" class="experiment-form">
                         <input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>"/>
                         <label for="experiment-name">Experiment name</label><input id="experiment-name" name="name" required minlength="3" maxlength="160" placeholder="e.g. Churn baseline  |  v1">
+                        <label for="execution-backend">Training location</label><select id="execution-backend" name="executionBackend" required><option value="LOCAL_CPU">Local CPU · run now in this workspace</option><option value="HUGGINGFACE_JOBS">Hugging Face Jobs · private remote training</option></select>
+                        <div class="remote-training-note" data-remote-training-note>
+                            <c:choose><c:when test="${huggingFaceStatus.ready}"><strong>Hugging Face is configured</strong><span>Starting a remote run uploads this CSV to a private dataset repository and uses Hugging Face compute. The repository remains in your Hub account until you delete it.</span></c:when><c:otherwise><strong>Hugging Face needs deployment setup</strong><span><c:out value="${huggingFaceStatus.message}"/></span></c:otherwise></c:choose>
+                        </div>
                         <label for="model-type">Classification model</label><select id="model-type" name="modelType" required><option value="LOGISTIC_REGRESSION">Logistic regression · two classes</option><option value="DECISION_TREE">Decision tree · two or more classes</option></select>
                         <p class="field-hint" data-model-hint>Logistic regression learns feature weights with gradient descent. Use it when your target has exactly two classes.</p>
                         <label for="experiment-dataset">Project dataset</label>
@@ -55,6 +61,7 @@
                         <div class="experiment-meta"><span><c:out value="${selectedExperiment.projectTitle}"/></span><span><c:out value="${selectedExperiment.datasetName}"/></span><span>Target: <strong><c:out value="${selectedExperiment.targetColumn}"/></strong></span><c:choose><c:when test="${selectedExperiment.modelName eq 'Binary logistic regression'}"><span><c:out value="${selectedExperiment.epochs}"/> epochs</span><span>Learning rate <c:out value="${selectedExperiment.learningRateLabel}"/></span></c:when><c:otherwise><span>Maximum tree depth: 6</span><span>Macro-averaged metrics</span></c:otherwise></c:choose></div>
                         <div class="run-progress-row"><span class="status-badge status-<c:out value='${selectedExperiment.statusLabel}'/>"><span></span><c:out value="${selectedExperiment.statusLabel}"/></span><strong><c:out value="${selectedExperiment.progress}"/>%</strong></div>
                         <div class="progress-track"><span style="width:<c:out value='${selectedExperiment.progress}'/>%"></span></div>
+                        <c:if test="${not empty selectedExperiment.remoteJobUrl}"><p class="remote-job-link"><span>REMOTE COMPUTE</span><a href="<c:out value='${selectedExperiment.remoteJobUrl}'/>" target="_blank" rel="noopener noreferrer">Open Hugging Face Job <span aria-hidden="true">↗</span></a></p></c:if>
                         <c:if test="${selectedExperiment.status eq 'FAILED'}">
                             <div class="alert alert-error" role="alert">
                                 <strong>Training failed.</strong>
@@ -66,7 +73,7 @@
                                 <p>Correct the issue and start a new run.</p>
                             </div>
                         </c:if>
-                        <c:if test="${selectedExperiment.status eq 'COMPLETED'}"><div class="run-metric-grid"><div><strong><c:out value="${selectedExperiment.accuracyPercent}"/></strong><span>Accuracy</span></div><div><strong><c:out value="${selectedExperiment.f1Percent}"/></strong><span>F1 score</span></div><div><strong><c:out value="${selectedExperiment.precisionPercent}"/></strong><span>Precision</span></div><div><strong><c:out value="${selectedExperiment.recallPercent}"/></strong><span>Recall</span></div></div></c:if>
+                        <c:if test="${selectedExperiment.status eq 'COMPLETED'}"><div class="run-metric-grid"><div><strong><c:out value="${selectedExperiment.accuracyPercent}"/></strong><span>Accuracy</span></div><div><strong><c:out value="${selectedExperiment.f1Percent}"/></strong><span>F1 score</span></div><div><strong><c:out value="${selectedExperiment.precisionPercent}"/></strong><span>Precision</span></div><div><strong><c:out value="${selectedExperiment.recallPercent}"/></strong><span>Recall</span></div></div><p class="form-actions"><a class="button button-secondary" href="${pageContext.request.contextPath}/experiments?download=report&amp;view=<c:out value='${selectedExperiment.id}'/>">Download run report</a></p></c:if>
                         <div class="run-log-heading"><h3>Run log</h3><span>Recorded status and progress</span></div>
                         <ol class="run-log-list"><c:forEach var="log" items="${selectedExperiment.logs}"><li class="log-${log.levelLabel}"><time><c:out value="${log.createdAt}"/></time><span><c:out value="${log.message}"/></span></li></c:forEach></ol>
                     </article>

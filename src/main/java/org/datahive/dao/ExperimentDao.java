@@ -11,6 +11,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,7 +22,7 @@ public final class ExperimentDao {
         List<Long> interrupted = new ArrayList<>();
         try (Connection connection = Database.getConnection();
              PreparedStatement statement = connection.prepareStatement(
-                     "SELECT id FROM training_runs WHERE status IN ('QUEUED', 'RUNNING')");
+                     "SELECT id FROM training_runs WHERE status IN ('QUEUED', 'RUNNING') AND remote_job_id IS NULL");
              ResultSet result = statement.executeQuery()) {
             while (result.next()) interrupted.add(result.getLong(1));
         }
@@ -29,7 +32,8 @@ public final class ExperimentDao {
 
     public TrainingTicket createAndQueue(long projectId, long datasetId, String name, String targetColumn,
                                          String modelType, List<String> features,
-                                         int epochs, double learningRate, long userId) throws SQLException {
+                                         int epochs, double learningRate, long userId,
+                                         String executionBackend) throws SQLException {
         String sql = "INSERT INTO experiments (project_id, dataset_id, name, model_name, target_column, epochs, " +
                 "learning_rate, parameters_json, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection connection = Database.getConnection()) {
@@ -44,7 +48,7 @@ public final class ExperimentDao {
                     statement.setString(5, targetColumn);
                     statement.setInt(6, epochs);
                     statement.setDouble(7, learningRate);
-                    statement.setString(8, parametersJson(modelType, features, epochs, learningRate));
+                    statement.setString(8, parametersJson(modelType, features, epochs, learningRate, executionBackend));
                     statement.setLong(9, userId);
                     statement.executeUpdate();
                     try (ResultSet keys = statement.getGeneratedKeys()) {
@@ -81,6 +85,113 @@ public final class ExperimentDao {
         }
     }
 
+    public void prepareRemoteRun(long runId, String callbackTokenHash) throws SQLException {
+        try (Connection connection = Database.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                     "UPDATE training_runs SET status='RUNNING', progress_percent=8, started_at=CURRENT_TIMESTAMP, " +
+                             "callback_token_hash=? WHERE id=? AND status='QUEUED'")) {
+            statement.setString(1, callbackTokenHash);
+            statement.setLong(2, runId);
+            if (statement.executeUpdate() != 1) throw new SQLException("Remote run is no longer queued");
+        }
+        addLog(runId, "Private remote training is preparing an isolated Hugging Face dataset repository.");
+    }
+
+    public void markRemoteSubmitted(long runId, String jobId, String jobUrl, String datasetRepo) throws SQLException {
+        try (Connection connection = Database.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                     "UPDATE training_runs SET remote_job_id=?, remote_job_url=?, progress_percent=15 " +
+                             "WHERE id=? AND status='RUNNING'")) {
+            statement.setString(1, jobId);
+            statement.setString(2, jobUrl);
+            statement.setLong(3, runId);
+            statement.executeUpdate();
+        }
+        addLog(runId, "Hugging Face Job " + safeLog(jobId) + " submitted. Private dataset: " + safeLog(datasetRepo) + ".");
+    }
+
+    public boolean completeRemote(long runId, String callbackToken, double accuracy, double precision,
+                                  double recall, double f1, String classSummary, int trainRows,
+                                  int testRows, double elapsedSeconds) throws SQLException {
+        String expectedHash = sha256(callbackToken);
+        try (Connection connection = Database.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                long projectId;
+                long userId;
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "SELECT e.project_id,e.created_by FROM training_runs tr JOIN experiments e " +
+                                "ON e.id=tr.experiment_id WHERE tr.id=? AND tr.status='RUNNING' " +
+                                "AND tr.callback_token_hash=?")) {
+                    statement.setLong(1, runId);
+                    statement.setString(2, expectedHash);
+                    try (ResultSet result = statement.executeQuery()) {
+                        if (!result.next()) { connection.rollback(); return false; }
+                        projectId = result.getLong(1);
+                        userId = result.getLong(2);
+                    }
+                }
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "UPDATE training_runs SET status='COMPLETED',progress_percent=100,finished_at=CURRENT_TIMESTAMP," +
+                                "callback_token_hash=NULL WHERE id=? AND status='RUNNING' AND callback_token_hash=?")) {
+                    statement.setLong(1, runId);
+                    statement.setString(2, expectedHash);
+                    if (statement.executeUpdate() != 1) { connection.rollback(); return false; }
+                }
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "INSERT INTO run_metrics (training_run_id,metric_name,metric_value) VALUES (?,?,?)")) {
+                    addMetric(statement, runId, "accuracy", accuracy);
+                    addMetric(statement, runId, "precision", precision);
+                    addMetric(statement, runId, "recall", recall);
+                    addMetric(statement, runId, "f1", f1);
+                    statement.executeBatch();
+                }
+                addLog(connection, runId, "INFO", "Remote holdout results: accuracy " + percent(accuracy) +
+                        ", F1 " + percent(f1) + ". Classification summary: '" + safeLog(classSummary) +
+                        "'. Train rows: " + trainRows + "; test rows: " + testRows + ".");
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "INSERT INTO usage_records (project_id,user_id,usage_type,amount) " +
+                                "VALUES (?,?,'COMPUTE_SECONDS',?)")) {
+                    statement.setLong(1, projectId);
+                    statement.setLong(2, userId);
+                    statement.setDouble(3, Math.max(0.01, elapsedSeconds));
+                    statement.executeUpdate();
+                }
+                connection.commit();
+                return true;
+            } catch (SQLException | RuntimeException exception) { connection.rollback(); throw exception; }
+            finally { connection.setAutoCommit(true); }
+        }
+    }
+
+    public boolean failRemote(long runId, String callbackToken, String message) throws SQLException {
+        try (Connection connection = Database.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                     "UPDATE training_runs SET status='FAILED',finished_at=CURRENT_TIMESTAMP,error_message=?," +
+                             "callback_token_hash=NULL WHERE id=? AND status='RUNNING' AND callback_token_hash=?")) {
+            String safe = safeLog(message);
+            statement.setString(1, safe.length() > 2000 ? safe.substring(0, 2000) : safe);
+            statement.setLong(2, runId);
+            statement.setString(3, sha256(callbackToken));
+            if (statement.executeUpdate() != 1) return false;
+        }
+        addLog(runId, "Remote training failed: " + safeLog(message));
+        return true;
+    }
+
+    private static void addLog(long runId, String message) throws SQLException {
+        try (Connection connection = Database.getConnection()) {
+            addLog(connection, runId, "INFO", message);
+        }
+    }
+
+    private static String sha256(String value) {
+        try {
+            byte[] bytes = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(bytes);
+        } catch (NoSuchAlgorithmException exception) { throw new IllegalStateException(exception); }
+    }
+
     public List<TrainingExperiment> listVisible(User user) throws SQLException {
         String sql = selectFrom(user.getRole() == Role.ADMIN) + visibleWhere(user.getRole() == Role.ADMIN) +
                 groupBy() + " ORDER BY tr.created_at DESC";
@@ -113,7 +224,7 @@ public final class ExperimentDao {
                     base.getDatasetName(), base.getName(), base.getModelName(), base.getTargetColumn(),
                     base.getEpochs(), base.getLearningRate(),
                     base.getStatus(), base.getProgress(), base.getCreatedBy(), base.getAccuracy(),
-                    base.getPrecision(), base.getRecall(), base.getF1(), base.getCreatedAt(), loadLogs(connection, runId));
+                    base.getPrecision(), base.getRecall(), base.getF1(), base.getCreatedAt(), base.getRemoteJobUrl(), loadLogs(connection, runId));
         }
     }
 
@@ -196,7 +307,7 @@ public final class ExperimentDao {
             connection.setAutoCommit(false);
             try {
                 try (PreparedStatement statement = connection.prepareStatement(
-                        "UPDATE training_runs SET status = 'FAILED', finished_at = CURRENT_TIMESTAMP, error_message = ? " +
+                    "UPDATE training_runs SET status = 'FAILED', finished_at = CURRENT_TIMESTAMP, error_message = ?, callback_token_hash = NULL " +
                                 "WHERE id = ? AND status IN ('QUEUED', 'RUNNING')")) {
                     String safe = safeLog(message);
                     statement.setString(1, safe.length() > 2000 ? safe.substring(0, 2000) : safe);
@@ -218,7 +329,7 @@ public final class ExperimentDao {
                 "MAX(CASE WHEN rm.metric_name = 'accuracy' THEN rm.metric_value END) AS accuracy, " +
                 "MAX(CASE WHEN rm.metric_name = 'precision' THEN rm.metric_value END) AS metric_precision, " +
                 "MAX(CASE WHEN rm.metric_name = 'recall' THEN rm.metric_value END) AS recall, " +
-                "MAX(CASE WHEN rm.metric_name = 'f1' THEN rm.metric_value END) AS f1, tr.created_at " +
+                "MAX(CASE WHEN rm.metric_name = 'f1' THEN rm.metric_value END) AS f1, tr.created_at, tr.remote_job_url " +
                 "FROM training_runs tr JOIN experiments e ON e.id = tr.experiment_id " +
                 "JOIN projects p ON p.id = e.project_id LEFT JOIN datasets d ON d.id = e.dataset_id " +
                 "JOIN users u ON u.id = e.created_by LEFT JOIN run_metrics rm ON rm.training_run_id = tr.id " +
@@ -228,7 +339,7 @@ public final class ExperimentDao {
     private static String visibleWhere(boolean admin) { return admin ? "" : "WHERE pm.user_id = ? "; }
     private static String groupBy() {
         return "GROUP BY e.id, tr.id, e.project_id, p.title, d.name, e.name, e.model_name, e.target_column, e.epochs, e.learning_rate, " +
-                "tr.status, tr.progress_percent, u.full_name, tr.created_at ";
+                "tr.status, tr.progress_percent, u.full_name, tr.created_at, tr.remote_job_url ";
     }
 
     private static List<RunLog> loadLogs(Connection connection, long runId) throws SQLException {
@@ -256,9 +367,10 @@ public final class ExperimentDao {
         statement.setLong(1, runId); statement.setString(2, name); statement.setDouble(3, value); statement.addBatch();
     }
     private static String parametersJson(String modelType, List<String> features,
-                                         int epochs, double learningRate) {
+                                         int epochs, double learningRate, String executionBackend) {
         StringBuilder json = new StringBuilder("{\"model\":\"")
-                .append(modelType).append("\",\"seed\":42,\"split\":\"80/20 stratified\"");
+                .append(modelType).append("\",\"backend\":\"").append(executionBackend)
+                .append("\",\"seed\":42,\"split\":\"80/20 stratified\"");
         if (org.datahive.service.ModelTrainer.DECISION_TREE.equals(modelType)) {
             json.append(",\"maxDepth\":6,\"criterion\":\"gini\"");
         } else {
@@ -282,7 +394,7 @@ public final class ExperimentDao {
                 result.getString("model_name"), result.getString("target_column"), result.getInt("epochs"),
                 result.getDouble("learning_rate"), result.getString("status"),
                 result.getInt("progress_percent"), result.getString("created_by"), accuracy, precision, recall, f1,
-                result.getString("created_at"), logs);
+                result.getString("created_at"), result.getString("remote_job_url"), logs);
     }
     private static String percent(double value) { return new java.text.DecimalFormat("0.0%").format(value); }
     private static String safeLog(String value) {

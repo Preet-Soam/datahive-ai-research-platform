@@ -8,7 +8,7 @@ DataHive now has two role-based workspaces and the main research workflow:
 
 - Admins can create/edit/deactivate accounts, maintain compute/storage resource records, review projects, and see usage reports.
 - Researchers can create and manage project workspaces, upload and profile CSV files, manage project teams, and update their profile.
-- Researchers can train binary logistic-regression and multiclass-capable decision-tree classifiers on project CSVs. Runs are queued in a bounded local worker, use a deterministic stratified 80/20 holdout, and persist progress, logs, accuracy, macro precision/recall/F1, configuration, and elapsed compute time.
+- Researchers can train binary logistic-regression and multiclass-capable decision-tree classifiers on project CSVs, either on the local CPU or as a private Hugging Face Job. Both use a deterministic stratified 80/20 holdout and save progress, logs, accuracy, macro precision/recall/F1, configuration, and compute time. Remote runs upload the chosen CSV to a private per-run Hub dataset and return metrics through a signed, one-time callback.
 - Role dashboards surface account/resource/project inventories for admins and dataset, training-job, collaboration, and profile summaries for researchers.
 - Uploads and training durations feed the admin usage charts. Resource entries describe the local workspace; DataHive does not provision cloud compute or storage.
 - Views use responsive JSP/HTML/CSS with small vanilla JavaScript interactions.
@@ -77,6 +77,11 @@ By default, the application uses a local H2 file database. Optional environment 
 - `DATAHIVE_DEMO_MODE` (`true` by default; set to `false` to skip seeded demo accounts and data)
 - `DATAHIVE_ADMIN_INVITE_CODE` (optional; required for public self-registration of Admin accounts)
 - `DATAHIVE_GOOGLE_CLIENT_ID` (optional; enables Google Identity Services on sign-in and sign-up)
+- `HF_TOKEN` (optional; Hugging Face write token for a private dataset repository and Jobs submission)
+- `HF_NAMESPACE` (optional; Hugging Face user or organization that owns the private dataset repository)
+- `DATAHIVE_PUBLIC_URL` (optional; public HTTPS application URL used for job callbacks)
+- `HF_PYTHON` (optional; Python executable with `huggingface_hub` installed; defaults to `python` on Windows or `python3` elsewhere)
+- `HF_JOBS_FLAVOR` (optional; Hugging Face Jobs compute flavor; defaults to `cpu-basic`)
 
 `DATAHIVE_JDBC_URL` may point to a supported H2 JDBC URL. By default, DataHive stores its H2 database and uploads under the current user's `.datahive` directory, independent of Tomcat's working directory. Set `DATAHIVE_DATA_DIR` or `DATAHIVE_UPLOAD_DIR` to choose other writable folders. Use the local demo accounts only for a local review; the demo setup is not production account provisioning.
 
@@ -100,6 +105,8 @@ The repository includes a Dockerfile for a Render **Web Service**. In Render, ch
 
 In the service's **Environment** settings, add `DATAHIVE_ADMIN_INVITE_CODE` with a long, private value. After the first deploy, open your service's `/register` page and create your Admin account using that invite code. You may also add `DATAHIVE_GOOGLE_CLIENT_ID`; if you enable Google sign-in, add your Render service origin (for example, `https://your-service.onrender.com`) to the OAuth client's authorized JavaScript origins.
 
+To enable remote training on Render, also add `HF_TOKEN`, `HF_NAMESPACE`, and `DATAHIVE_PUBLIC_URL` (the service origin, such as `https://your-service.onrender.com`) in **Environment** settings. The included Dockerfile installs the Python runtime and Hub client. Redeploy after saving the variables.
+
 The default Render filesystem is ephemeral. For a short demo, the H2 database and uploads will work but can be lost when the service restarts or redeploys. To keep them, attach a **paid persistent disk** at `/var/data` and set `DATAHIVE_DATA_DIR=/var/data/db` and `DATAHIVE_UPLOAD_DIR=/var/data/uploads` in the service environment. Free Render web services cannot attach persistent disks and may spin down when idle. See [Render Docker deployment](https://render.com/docs/docker), [persistent disks](https://render.com/docs/disks), and [free service limitations](https://render.com/docs/free).
 
 ## Project layout
@@ -117,7 +124,20 @@ uploads/                        Server-named local CSVs (ignored by Git)
 
 The built-in supervised classification workflow accepts CSVs up to 10 MiB, 50 columns, and 50,000 data rows. Researchers select a label column and numeric features. Logistic regression supports two classes, standardizes features, imputes missing values from the training split, and offers 60, 120, or 180 epochs and learning-rate settings. The CART decision tree supports two or more classes, uses Gini impurity, imputes missing feature values from the training split, and caps depth at six. Both models use a deterministic, stratified 80/20 split and report held-out accuracy, precision, recall, and F1 (macro-averaged for the tree). Experiments save their model choice, configuration, status, timestamped logs, and metrics. The local worker runs at most two jobs at once and queues up to twelve more. Admin reports filter recorded compute time and uploaded CSV bytes by a chosen date range.
 
-Models train on the web server's local CPU. DataHive does not provision cloud/GPU compute, execute arbitrary Python notebooks, or store deployable model artifacts yet. It provides a working, explainable supervised-classification research workflow for small CSV datasets.
+The local option trains on the web server's CPU. DataHive does not execute arbitrary user notebooks or save deployable model artifacts yet. It provides an explainable supervised-classification research workflow for small CSV datasets.
+
+## Hugging Face Jobs readiness
+
+The experiment screen includes a **Hugging Face Jobs** training-location option. To enable it:
+
+1. Create a Hugging Face token that can write dataset repositories and submit Jobs. Add it as `HF_TOKEN`; add your account or organization as `HF_NAMESPACE`.
+2. Set `DATAHIVE_PUBLIC_URL` to the public HTTPS origin of this DataHive deployment so the remote worker can send its result back. Local `localhost` URLs cannot receive remote callbacks.
+3. On the app server, install Python 3.10+ and `huggingface_hub` (`python -m pip install huggingface_hub`). Set `HF_PYTHON` if the Python executable is not on `PATH`. The Render Docker image installs a dedicated Python environment automatically; local Hugging Face Jobs need Python installed separately.
+4. Restart/redeploy DataHive. Choose **Hugging Face Jobs** in Experiments and explicitly submit a run.
+
+On submission, DataHive creates a private Hub dataset named `datahive-run-<run id>`, uploads the selected CSV, and starts a bounded Python job. The worker installs pandas and scikit-learn, applies the selected target/features and classifier to a deterministic stratified 80/20 split, then posts held-out metrics back to DataHive. The run detail page links to the remote Job and records the private dataset name in its log. The private dataset stays in the Hub account until its owner deletes it; review the file and account's retention needs before starting. Hugging Face Jobs consume account compute credits and may incur charges; see the [Jobs guide](https://huggingface.co/docs/huggingface_hub/en/guides/jobs) and [Jobs API reference](https://huggingface.co/docs/hub/en/jobs-reference).
+
+The Hugging Face token stays server-side and is passed to the job as a secret. DataHive stores only a hash of the one-time callback token and never exposes credentials in the browser, database, activity log, or repository. If the deployment is not configured, local CPU training remains available.
 
 ## Presentation and submission
 

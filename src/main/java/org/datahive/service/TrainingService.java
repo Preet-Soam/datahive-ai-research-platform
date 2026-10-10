@@ -15,6 +15,9 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.security.SecureRandom;
+import java.util.HexFormat;
+import java.nio.charset.StandardCharsets;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -50,6 +53,57 @@ public final class TrainingService implements ServletContextListener {
         if (!csv.startsWith(root)) throw new IllegalArgumentException("Invalid dataset storage path");
         executor.execute(() -> run(runId, projectId, userId, csv, modelType, targetColumn,
                 features, epochs, learningRate));
+    }
+
+    public void enqueueRemote(long runId, Dataset dataset, String experimentName, String modelType,
+                              String targetColumn, List<String> features, int epochs, double learningRate,
+                              String contextPath) {
+        Path root = AppStorage.uploadDirectory();
+        Path csv = root.resolve(dataset.getStoredFilename()).normalize();
+        if (!csv.startsWith(root)) throw new IllegalArgumentException("Invalid dataset storage path");
+        executor.execute(() -> submitRemote(runId, csv, experimentName, modelType, targetColumn,
+                features, epochs, learningRate, contextPath));
+    }
+
+    private void submitRemote(long runId, Path csv, String experimentName, String modelType,
+                              String targetColumn, List<String> features, int epochs,
+                              double learningRate, String contextPath) {
+        ExperimentDao dao = new ExperimentDao();
+        String token = newCallbackToken();
+        try {
+            dao.prepareRemoteRun(runId, sha256(token));
+            HuggingFaceJobsClient client = new HuggingFaceJobsClient();
+            HuggingFaceJobsClient.Status status = client.status();
+            if (!status.ready()) throw new IOException(status.message());
+            String callbackUrl = status.callbackUrl().replaceAll("/+$", "") + contextPath + "/hf/callback";
+            HuggingFaceJobsClient.Submission submitted = client.submit(csv, runId, experimentName,
+                    modelType, targetColumn, features, epochs, learningRate, callbackUrl, token);
+            dao.markRemoteSubmitted(runId, submitted.jobId(), submitted.jobUrl(), submitted.datasetRepo());
+            ActivityLogger.record((Long) null, "REMOTE_TRAINING_SUBMITTED", "Training run", runId,
+                    "Submitted a private Hugging Face Jobs run " + submitted.jobId() + " using dataset " + submitted.datasetRepo() + ".");
+        } catch (Exception exception) {
+            String message = exception.getMessage() == null ? "Remote training submission failed." : exception.getMessage();
+            try { dao.fail(runId, message); }
+            catch (SQLException persistenceException) {
+                LOGGER.log(Level.SEVERE, "Remote submission failed and its state could not be saved for run " + runId, persistenceException);
+            }
+            ActivityLogger.record((Long) null, "REMOTE_TRAINING_FAILED", "Training run", runId,
+                    "Remote training submission failed: " + message);
+            LOGGER.log(Level.WARNING, "Hugging Face Job submission failed for run " + runId + ": " + message);
+        }
+    }
+
+    private static String newCallbackToken() {
+        byte[] bytes = new byte[32];
+        new SecureRandom().nextBytes(bytes);
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private static String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException exception) { throw new IllegalStateException(exception); }
     }
 
     private void run(long runId, long projectId, long userId, Path csv, String modelType,
