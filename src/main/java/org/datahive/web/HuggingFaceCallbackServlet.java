@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.datahive.dao.ExperimentDao;
+import org.datahive.model.TrainingEvaluation;
 import org.datahive.service.ActivityLogger;
 
 import java.io.IOException;
@@ -45,8 +46,9 @@ public final class HuggingFaceCallbackServlet extends HttpServlet {
                 double elapsed = boundedDouble(request.getParameter("elapsedSeconds"), 0, 7200);
                 String summary = request.getParameter("classSummary");
                 if (summary == null) summary = "Remote classifier";
+                TrainingEvaluation evaluation = evaluation(request, trainRows, testRows);
                 accepted = experiments.completeRemote(runId, token, accuracy, precision, recall, f1,
-                        summary, trainRows, testRows, elapsed);
+                        summary, trainRows, testRows, elapsed, evaluation);
                 if (accepted) ActivityLogger.record((Long) null, "REMOTE_TRAINING_COMPLETED", "Training run", runId,
                         String.format(java.util.Locale.ROOT, "Hugging Face training completed. Accuracy %.1f%%; macro F1 %.1f%%.",
                                 accuracy * 100, f1 * 100));
@@ -86,5 +88,57 @@ public final class HuggingFaceCallbackServlet extends HttpServlet {
         double result = Double.parseDouble(value);
         if (!Double.isFinite(result) || result < minimum || result > maximum) throw new IllegalArgumentException();
         return result;
+    }
+
+    private static TrainingEvaluation evaluation(HttpServletRequest request, int trainRows, int testRows) {
+        int count = nonNegativeInt(request.getParameter("classCount"));
+        if (count < 2 || count > 20) throw new IllegalArgumentException();
+        java.util.List<String> labels = new java.util.ArrayList<>();
+        int[] trainingCounts = parseCounts(request.getParameter("trainingClassCounts"), count);
+        long[] flatMatrix = parseCountsAsLong(request.getParameter("confusionCounts"), count * count);
+        long[][] confusion = new long[count][count];
+        long testSum = 0;
+        long trainSum = 0;
+        for (int value : trainingCounts) trainSum += value;
+        if (trainSum != trainRows) throw new IllegalArgumentException();
+        for (int actual = 0; actual < count; actual++) {
+            String encoded = request.getParameter("classLabel" + actual);
+            if (encoded == null || encoded.length() > 700) throw new IllegalArgumentException();
+            String label;
+            try {
+                String padded = encoded + "=".repeat((4 - encoded.length() % 4) % 4);
+                label = new String(java.util.Base64.getUrlDecoder().decode(padded), java.nio.charset.StandardCharsets.UTF_8);
+            } catch (IllegalArgumentException exception) { throw new IllegalArgumentException(); }
+            if (label.isBlank() || label.length() > 190) throw new IllegalArgumentException();
+            labels.add(label);
+            for (int predicted = 0; predicted < count; predicted++) {
+                confusion[actual][predicted] = flatMatrix[actual * count + predicted];
+                testSum += confusion[actual][predicted];
+            }
+        }
+        if (testSum != testRows) throw new IllegalArgumentException();
+        return TrainingEvaluation.from(labels, confusion, trainingCounts, trainRows, testRows);
+    }
+
+    private static int[] parseCounts(String value, int expected) {
+        long[] parsed = parseCountsAsLong(value, expected);
+        int[] counts = new int[expected];
+        for (int index = 0; index < expected; index++) {
+            if (parsed[index] > 50_000) throw new IllegalArgumentException();
+            counts[index] = (int) parsed[index];
+        }
+        return counts;
+    }
+
+    private static long[] parseCountsAsLong(String value, int expected) {
+        if (value == null || value.length() > 10_000) throw new IllegalArgumentException();
+        String[] parts = value.split(",", -1);
+        if (parts.length != expected) throw new IllegalArgumentException();
+        long[] counts = new long[expected];
+        for (int index = 0; index < expected; index++) {
+            counts[index] = Long.parseLong(parts[index]);
+            if (counts[index] < 0 || counts[index] > 50_000) throw new IllegalArgumentException();
+        }
+        return counts;
     }
 }

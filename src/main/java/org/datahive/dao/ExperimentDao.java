@@ -4,6 +4,7 @@ import org.datahive.config.Database;
 import org.datahive.model.Role;
 import org.datahive.model.RunLog;
 import org.datahive.model.TrainingExperiment;
+import org.datahive.model.TrainingEvaluation;
 import org.datahive.model.User;
 
 import java.sql.Connection;
@@ -112,7 +113,8 @@ public final class ExperimentDao {
 
     public boolean completeRemote(long runId, String callbackToken, double accuracy, double precision,
                                   double recall, double f1, String classSummary, int trainRows,
-                                  int testRows, double elapsedSeconds) throws SQLException {
+                                  int testRows, double elapsedSeconds,
+                                  TrainingEvaluation evaluation) throws SQLException {
         String expectedHash = sha256(callbackToken);
         try (Connection connection = Database.getConnection()) {
             connection.setAutoCommit(false);
@@ -146,6 +148,7 @@ public final class ExperimentDao {
                     addMetric(statement, runId, "f1", f1);
                     statement.executeBatch();
                 }
+                persistEvaluation(connection, runId, evaluation);
                 addLog(connection, runId, "INFO", "Remote holdout results: accuracy " + percent(accuracy) +
                         ", F1 " + percent(f1) + ". Classification summary: '" + safeLog(classSummary) +
                         "'. Train rows: " + trainRows + "; test rows: " + testRows + ".");
@@ -224,7 +227,8 @@ public final class ExperimentDao {
                     base.getDatasetName(), base.getName(), base.getModelName(), base.getTargetColumn(),
                     base.getEpochs(), base.getLearningRate(),
                     base.getStatus(), base.getProgress(), base.getCreatedBy(), base.getAccuracy(),
-                    base.getPrecision(), base.getRecall(), base.getF1(), base.getCreatedAt(), base.getRemoteJobUrl(), loadLogs(connection, runId));
+                    base.getPrecision(), base.getRecall(), base.getF1(), base.getCreatedAt(), base.getRemoteJobUrl(),
+                    loadEvaluation(connection, runId), loadLogs(connection, runId));
         }
     }
 
@@ -267,7 +271,8 @@ public final class ExperimentDao {
 
     public void complete(long runId, long projectId, long userId, double elapsedSeconds,
                          double accuracy, double precision, double recall, double f1,
-                         String positiveClass, int trainRows, int testRows) throws SQLException {
+                         String positiveClass, int trainRows, int testRows,
+                         TrainingEvaluation evaluation) throws SQLException {
         try (Connection connection = Database.getConnection()) {
             connection.setAutoCommit(false);
             try {
@@ -285,6 +290,7 @@ public final class ExperimentDao {
                     addMetric(statement, runId, "f1", f1);
                     statement.executeBatch();
                 }
+                persistEvaluation(connection, runId, evaluation);
                 addLog(connection, runId, "INFO", "Holdout results: accuracy " + percent(accuracy) + ", F1 " + percent(f1) +
                         ". Classification summary: '" + safeLog(positiveClass) + "'. Train rows: " + trainRows + "; test rows: " + testRows + ".");
                 try (PreparedStatement statement = connection.prepareStatement(
@@ -354,6 +360,79 @@ public final class ExperimentDao {
         return logs;
     }
 
+    private static void persistEvaluation(Connection connection, long runId,
+                                          TrainingEvaluation evaluation) throws SQLException {
+        if (evaluation == null || evaluation.getLabels().isEmpty() || evaluation.getLabels().size() > 20) {
+            throw new SQLException("The run evaluation is missing or exceeds the supported class limit");
+        }
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO run_evaluations (training_run_id,train_rows,test_rows,baseline_accuracy) VALUES (?,?,?,?)")) {
+            statement.setLong(1, runId);
+            statement.setInt(2, evaluation.getTrainRows());
+            statement.setInt(3, evaluation.getTestRows());
+            statement.setDouble(4, evaluation.getBaselineAccuracy());
+            statement.executeUpdate();
+        }
+        try (PreparedStatement classStatement = connection.prepareStatement(
+                    "INSERT INTO run_evaluation_classes (training_run_id,class_index,class_label,actual_support,predicted_count,precision_score,recall_score,f1_score) VALUES (?,?,?,?,?,?,?,?)");
+             PreparedStatement cellStatement = connection.prepareStatement(
+                    "INSERT INTO run_confusion_cells (training_run_id,actual_class_index,predicted_class_index,cell_count) VALUES (?,?,?,?)")) {
+            for (int actual = 0; actual < evaluation.getClasses().size(); actual++) {
+                TrainingEvaluation.ClassMetric metric = evaluation.getClasses().get(actual);
+                classStatement.setLong(1, runId); classStatement.setInt(2, actual);
+                classStatement.setString(3, metric.getLabel()); classStatement.setLong(4, metric.getSupport());
+                classStatement.setLong(5, metric.getPredicted()); classStatement.setDouble(6, metric.getPrecision());
+                classStatement.setDouble(7, metric.getRecall()); classStatement.setDouble(8, metric.getF1());
+                classStatement.addBatch();
+                List<TrainingEvaluation.MatrixCell> cells = evaluation.getMatrixRows().get(actual).getCells();
+                for (int predicted = 0; predicted < cells.size(); predicted++) {
+                    cellStatement.setLong(1, runId); cellStatement.setInt(2, actual);
+                    cellStatement.setInt(3, predicted); cellStatement.setLong(4, cells.get(predicted).getCount());
+                    cellStatement.addBatch();
+                }
+            }
+            classStatement.executeBatch();
+            cellStatement.executeBatch();
+        }
+    }
+
+    private static TrainingEvaluation loadEvaluation(Connection connection, long runId) throws SQLException {
+        int trainRows;
+        int testRows;
+        double baseline;
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT train_rows,test_rows,baseline_accuracy FROM run_evaluations WHERE training_run_id=?")) {
+            statement.setLong(1, runId);
+            try (ResultSet result = statement.executeQuery()) {
+                if (!result.next()) return null;
+                trainRows = result.getInt(1); testRows = result.getInt(2); baseline = result.getDouble(3);
+            }
+        }
+        List<String> labels = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT class_label FROM run_evaluation_classes WHERE training_run_id=? ORDER BY class_index")) {
+            statement.setLong(1, runId);
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) labels.add(result.getString(1));
+            }
+        }
+        if (labels.isEmpty() || labels.size() > 20) return null;
+        long[][] matrix = new long[labels.size()][labels.size()];
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT actual_class_index,predicted_class_index,cell_count FROM run_confusion_cells WHERE training_run_id=?")) {
+            statement.setLong(1, runId);
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    int actual = result.getInt(1); int predicted = result.getInt(2);
+                    if (actual >= 0 && actual < labels.size() && predicted >= 0 && predicted < labels.size()) {
+                        matrix[actual][predicted] = result.getLong(3);
+                    }
+                }
+            }
+        }
+        return TrainingEvaluation.restore(labels, matrix, trainRows, testRows, baseline);
+    }
+
     private static void addLog(Connection connection, long runId, String level, String message) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
                 "INSERT INTO run_logs (training_run_id, level, message) VALUES (?, ?, ?)")) {
@@ -394,7 +473,7 @@ public final class ExperimentDao {
                 result.getString("model_name"), result.getString("target_column"), result.getInt("epochs"),
                 result.getDouble("learning_rate"), result.getString("status"),
                 result.getInt("progress_percent"), result.getString("created_by"), accuracy, precision, recall, f1,
-                result.getString("created_at"), result.getString("remote_job_url"), logs);
+                result.getString("created_at"), result.getString("remote_job_url"), null, logs);
     }
     private static String percent(double value) { return new java.text.DecimalFormat("0.0%").format(value); }
     private static String safeLog(String value) {

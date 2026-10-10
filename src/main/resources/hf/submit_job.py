@@ -9,7 +9,7 @@ from huggingface_hub import HfApi, run_job
 
 
 def remote_program():
-    return r'''import json, os, time, urllib.parse, urllib.request
+    return r'''import json, os, time, urllib.parse, urllib.request, base64
 from huggingface_hub import hf_hub_download
 import numpy as np
 import pandas as pd
@@ -54,12 +54,26 @@ try:
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42, stratify=y)
     estimator.fit(x_train, y_train)
     predicted = estimator.predict(x_test)
-    callback({"status":"COMPLETED", "accuracy":accuracy_score(y_test,predicted),
+    class_labels = sorted(str(value) for value in y_train.unique().tolist())
+    class_indexes = {label: index for index, label in enumerate(class_labels)}
+    confusion = [[0 for _ in class_labels] for _ in class_labels]
+    for actual, guess in zip(y_test.astype(str).tolist(), predicted.astype(str).tolist()):
+        confusion[class_indexes[actual]][class_indexes[guess]] += 1
+    training_counts = [int((y_train.astype(str) == label).sum()) for label in class_labels]
+    majority_index = max(range(len(class_labels)), key=lambda index: training_counts[index])
+    baseline_accuracy = sum(confusion[index][majority_index] for index in range(len(class_labels))) / len(y_test)
+    fields = {"status":"COMPLETED", "accuracy":accuracy_score(y_test,predicted),
         "precision":precision_score(y_test,predicted,average="macro",zero_division=0),
         "recall":recall_score(y_test,predicted,average="macro",zero_division=0),
         "f1":f1_score(y_test,predicted,average="macro",zero_division=0),
-        "classSummary":", ".join(str(v) for v in sorted(y.unique().tolist()))[:500],
-        "trainRows":len(y_train), "testRows":len(y_test), "elapsedSeconds":time.monotonic()-started})
+        "classSummary":", ".join(class_labels)[:500],
+        "trainRows":len(y_train), "testRows":len(y_test), "elapsedSeconds":time.monotonic()-started,
+        "classCount":len(class_labels), "trainingClassCounts":",".join(str(value) for value in training_counts),
+        "confusionCounts":",".join(str(value) for row in confusion for value in row),
+        "baselineAccuracy":baseline_accuracy}
+    for index, label in enumerate(class_labels):
+        fields[f"classLabel{index}"] = base64.urlsafe_b64encode(label.encode("utf-8")).decode("ascii").rstrip("=")
+    callback(fields)
 except Exception as exc:
     try: callback({"status":"FAILED", "message":str(exc)[:1500]})
     except Exception: pass

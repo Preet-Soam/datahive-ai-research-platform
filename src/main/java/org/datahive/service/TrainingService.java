@@ -121,7 +121,8 @@ public final class TrainingService implements ServletContextListener {
                     });
             double seconds = (System.nanoTime() - started) / 1_000_000_000.0;
             dao.complete(runId, projectId, userId, seconds, result.accuracy(), result.precision(),
-                    result.recall(), result.f1(), result.positiveClass(), result.trainRows(), result.testRows());
+                    result.recall(), result.f1(), result.positiveClass(), result.trainRows(), result.testRows(),
+                    result.evaluation());
             ActivityLogger.record(userId, "TRAINING_COMPLETED", "Training run", runId,
                     String.format(java.util.Locale.ROOT, "Training run #%d completed on local CPU; accuracy %.1f%%, precision %.1f%%, recall %.1f%%, F1 %.1f%% (%d train / %d test rows).",
                             runId, result.accuracy() * 100, result.precision() * 100, result.recall() * 100,

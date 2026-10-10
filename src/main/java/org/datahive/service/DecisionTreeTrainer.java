@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import java.util.TreeSet;
+import org.datahive.model.TrainingEvaluation;
 
 /** A deterministic CART classifier for small, numeric research datasets. */
 public final class DecisionTreeTrainer {
@@ -17,6 +18,9 @@ public final class DecisionTreeTrainer {
         Prepared prepared = prepare(table, targetName, featureNames);
         if (prepared.labels().size() < 2) {
             throw new IOException("The target column needs at least two non-empty classes");
+        }
+        if (prepared.labels().size() > 20 || prepared.labels().stream().anyMatch(label -> label.length() > 190)) {
+            throw new IOException("The decision-tree evaluation supports up to 20 classes with labels of 190 characters or less");
         }
         if (prepared.rows().size() < 10) {
             throw new IOException("At least 10 complete labeled rows are needed for a train/test split");
@@ -85,36 +89,20 @@ public final class DecisionTreeTrainer {
         progress.onProgress(85, "Fit a depth-limited decision tree using Gini impurity.");
 
         long[][] confusion = new long[prepared.labels().size()][prepared.labels().size()];
-        long correct = 0;
         for (int index : testIndexes) {
             int prediction = predict(root, values[index]);
             int actual = labels[index];
             confusion[actual][prediction]++;
-            if (prediction == actual) correct++;
         }
-        double macroPrecision = 0;
-        double macroRecall = 0;
-        double macroF1 = 0;
-        for (int label = 0; label < confusion.length; label++) {
-            long truePositive = confusion[label][label];
-            long predicted = 0;
-            long actual = 0;
-            for (int other = 0; other < confusion.length; other++) {
-                predicted += confusion[other][label];
-                actual += confusion[label][other];
-            }
-            double precision = ratio(truePositive, predicted);
-            double recall = ratio(truePositive, actual);
-            macroPrecision += precision;
-            macroRecall += recall;
-            macroF1 += precision + recall == 0 ? 0 : 2 * precision * recall / (precision + recall);
-        }
-        double classes = confusion.length;
+        int[] trainingClassCounts = new int[prepared.labels().size()];
+        for (int index : trainIndexes) trainingClassCounts[labels[index]]++;
+        TrainingEvaluation evaluation = TrainingEvaluation.from(prepared.labels(), confusion,
+                trainingClassCounts, trainIndexes.size(), testIndexes.size());
         progress.onProgress(95, "Evaluated held-out rows with macro-averaged classification metrics.");
-        return new BinaryLogisticTrainer.Result(correct / (double) testIndexes.size(),
-                macroPrecision / classes, macroRecall / classes, macroF1 / classes,
-                trainIndexes.size(), testIndexes.size(), "Macro average (" + (int) classes + " classes)",
-                prepared.featureNames());
+        return new BinaryLogisticTrainer.Result(evaluation.getAccuracy(),
+                evaluation.getMacroPrecision(), evaluation.getMacroRecall(), evaluation.getMacroF1(),
+                trainIndexes.size(), testIndexes.size(), "Macro average (" + prepared.labels().size() + " classes)",
+                prepared.featureNames(), evaluation);
     }
 
     private static Prepared prepare(CsvProfiler.Table table, String targetName,

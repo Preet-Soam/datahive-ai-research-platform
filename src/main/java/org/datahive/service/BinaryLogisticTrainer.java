@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import org.datahive.model.TrainingEvaluation;
 
 /** A small, deterministic CPU baseline for binary classification on numeric CSV features. */
 public final class BinaryLogisticTrainer {
@@ -35,6 +36,9 @@ public final class BinaryLogisticTrainer {
         }
         if (labels.size() != 2) {
             throw new IOException("The target column must contain exactly two non-empty classes");
+        }
+        if (labels.stream().anyMatch(label -> label.length() > 190)) {
+            throw new IOException("Target labels must be 190 characters or less for saved evaluation detail");
         }
 
         long[] classRows = new long[2];
@@ -177,21 +181,20 @@ public final class BinaryLogisticTrainer {
                     "Training epoch " + (epoch + 1) + " of " + epochs + " on " + trainRows.size() + " rows.");
         }
 
-        long truePositive = 0, falsePositive = 0, falseNegative = 0, correct = 0;
+        long[][] confusion = new long[2][2];
         for (int index : testRows) {
             int predicted = sigmoid(dot(weights, x[index]) + bias) >= 0.5 ? 1 : 0;
             int actual = outcomes.get(index);
-            if (predicted == actual) correct++;
-            if (predicted == 1 && actual == 1) truePositive++;
-            if (predicted == 1 && actual == 0) falsePositive++;
-            if (predicted == 0 && actual == 1) falseNegative++;
+            confusion[actual][predicted]++;
         }
-        double precision = ratio(truePositive, truePositive + falsePositive);
-        double recall = ratio(truePositive, truePositive + falseNegative);
-        double f1 = precision + recall == 0 ? 0 : 2 * precision * recall / (precision + recall);
+        int[] trainingClassCounts = new int[orderedLabels.size()];
+        for (int index : trainRows) trainingClassCounts[outcomes.get(index)]++;
+        TrainingEvaluation evaluation = TrainingEvaluation.from(orderedLabels, confusion,
+                trainingClassCounts, trainRows.size(), testRows.size());
         progress.onProgress(95, "Evaluated " + testRows.size() + " held-out rows; positive class is '" + orderedLabels.get(1) + "'.");
-        return new Result(correct / (double) testRows.size(), precision, recall, f1,
-                trainRows.size(), testRows.size(), orderedLabels.get(1), featureNames);
+        return new Result(evaluation.getAccuracy(), evaluation.getMacroPrecision(), evaluation.getMacroRecall(),
+                evaluation.getMacroF1(), trainRows.size(), testRows.size(), orderedLabels.get(1), featureNames,
+                evaluation);
     }
 
     private static double dot(double[] left, double[] right) {
@@ -204,9 +207,8 @@ public final class BinaryLogisticTrainer {
         double exp = Math.exp(Math.max(value, -40));
         return exp / (1 + exp);
     }
-    private static double ratio(long numerator, long denominator) { return denominator == 0 ? 0 : numerator / (double) denominator; }
-
     @FunctionalInterface public interface ProgressListener { void onProgress(int progress, String message) throws IOException; }
     public record Result(double accuracy, double precision, double recall, double f1, int trainRows,
-                         int testRows, String positiveClass, List<String> features) { }
+                         int testRows, String positiveClass, List<String> features,
+                         TrainingEvaluation evaluation) { }
 }

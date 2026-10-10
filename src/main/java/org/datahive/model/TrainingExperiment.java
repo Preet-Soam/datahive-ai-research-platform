@@ -22,19 +22,21 @@ public final class TrainingExperiment {
     private final double f1;
     private final String createdAt;
     private final String remoteJobUrl;
+    private final TrainingEvaluation evaluation;
     private final List<RunLog> logs;
 
     public TrainingExperiment(long id, long runId, long projectId, String projectTitle, String datasetName,
                               String name, String modelName, String targetColumn, int epochs, double learningRate,
                               String status, int progress,
                               String createdBy, double accuracy, double precision, double recall, double f1,
-                              String createdAt, String remoteJobUrl, List<RunLog> logs) {
+                              String createdAt, String remoteJobUrl, TrainingEvaluation evaluation, List<RunLog> logs) {
         this.id = id; this.runId = runId; this.projectId = projectId; this.projectTitle = projectTitle;
         this.datasetName = datasetName; this.name = name; this.modelName = modelName;
         this.targetColumn = targetColumn; this.epochs = epochs; this.learningRate = learningRate;
         this.status = status; this.progress = progress;
         this.createdBy = createdBy; this.accuracy = accuracy; this.precision = precision;
         this.recall = recall; this.f1 = f1; this.createdAt = createdAt; this.remoteJobUrl = remoteJobUrl;
+        this.evaluation = evaluation;
         this.logs = logs == null ? List.of() : List.copyOf(logs);
     }
     public long getId() { return id; }
@@ -59,6 +61,7 @@ public final class TrainingExperiment {
     public double getF1() { return f1; }
     public String getCreatedAt() { return createdAt; }
     public String getRemoteJobUrl() { return remoteJobUrl; }
+    public TrainingEvaluation getEvaluation() { return evaluation; }
     public List<RunLog> getLogs() { return logs; }
     public String getAccuracyPercent() { return metric(accuracy); }
     public String getPrecisionPercent() { return metric(precision); }

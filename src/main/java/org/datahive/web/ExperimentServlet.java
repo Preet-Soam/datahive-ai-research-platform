@@ -216,6 +216,23 @@ public final class ExperimentServlet extends HttpServlet {
         appendCsvRow(csv, "Precision", Double.toString(report.getPrecision()));
         appendCsvRow(csv, "Recall", Double.toString(report.getRecall()));
         appendCsvRow(csv, "F1", Double.toString(report.getF1()));
+        if (report.getEvaluation() != null) {
+            appendCsvRow(csv, "Training rows", Integer.toString(report.getEvaluation().getTrainRows()));
+            appendCsvRow(csv, "Held-out rows", Integer.toString(report.getEvaluation().getTestRows()));
+            appendCsvRow(csv, "Majority-class baseline accuracy", Double.toString(report.getEvaluation().getBaselineAccuracy()));
+            for (int index = 0; index < report.getEvaluation().getClasses().size(); index++) {
+                var metric = report.getEvaluation().getClasses().get(index);
+                appendCsvRow(csv, "Class " + metric.getLabel() + " support", Long.toString(metric.getSupport()));
+                appendCsvRow(csv, "Class " + metric.getLabel() + " precision", Double.toString(metric.getPrecision()));
+                appendCsvRow(csv, "Class " + metric.getLabel() + " recall", Double.toString(metric.getRecall()));
+                appendCsvRow(csv, "Class " + metric.getLabel() + " F1", Double.toString(metric.getF1()));
+                List<org.datahive.model.TrainingEvaluation.MatrixCell> cells = report.getEvaluation().getMatrixRows().get(index).getCells();
+                for (int predicted = 0; predicted < cells.size(); predicted++) {
+                    appendCsvRow(csv, "Actual " + metric.getLabel() + " predicted " + report.getEvaluation().getLabels().get(predicted),
+                            Long.toString(cells.get(predicted).getCount()));
+                }
+            }
+        }
         appendCsvRow(csv, "Created at", report.getCreatedAt());
         response.getWriter().write(csv.toString());
     }
