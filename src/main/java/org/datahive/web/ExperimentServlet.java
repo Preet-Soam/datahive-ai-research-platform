@@ -13,6 +13,7 @@ import org.datahive.config.AppStorage;
 import org.datahive.model.ColumnProfile;
 import org.datahive.model.Dataset;
 import org.datahive.model.Project;
+import org.datahive.model.Role;
 import org.datahive.model.TrainingExperiment;
 import org.datahive.model.User;
 import org.datahive.service.TrainingService;
@@ -40,6 +41,10 @@ public final class ExperimentServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         User user = (User) request.getAttribute("currentUser");
+        if (user.getRole() == Role.ADMIN) {
+            response.sendRedirect(request.getContextPath() + "/admin?tab=activity");
+            return;
+        }
         try {
             if ("report".equals(request.getParameter("download"))) {
                 TrainingExperiment report = experimentDao.findVisible(positiveId(request.getParameter("view")), user);
@@ -101,6 +106,10 @@ public final class ExperimentServlet extends HttpServlet {
             throws ServletException, IOException {
         request.setCharacterEncoding("UTF-8");
         User user = (User) request.getAttribute("currentUser");
+        if (user.getRole() == Role.ADMIN) {
+            response.sendRedirect(request.getContextPath() + "/admin?tab=activity");
+            return;
+        }
         if (!validCsrf(request)) { response.sendError(HttpServletResponse.SC_BAD_REQUEST, "The request could not be verified"); return; }
         try {
             String action = clean(request.getParameter("action"));

@@ -214,6 +214,16 @@ public final class ProjectDao {
         }
     }
 
+    public boolean restore(long projectId) throws SQLException {
+        try (Connection connection = Database.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                     "UPDATE projects SET status = 'ACTIVE', updated_at = CURRENT_TIMESTAMP " +
+                             "WHERE id = ? AND status = 'ARCHIVED'")) {
+            statement.setLong(1, projectId);
+            return statement.executeUpdate() == 1;
+        }
+    }
+
     /** Permanently removes a project and its dependent research data, but never while a run is active. */
     public Optional<List<String>> delete(long projectId, User actor) throws SQLException {
         String ownerCondition = actor.getRole() == Role.ADMIN ? "" : " AND owner_id = ?";

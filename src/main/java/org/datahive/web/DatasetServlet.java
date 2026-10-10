@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.servlet.http.Part;
+import org.datahive.config.AppStorage;
 import org.datahive.dao.DatasetDao;
 import org.datahive.dao.ProjectDao;
 import org.datahive.model.Dataset;
@@ -44,6 +45,10 @@ public final class DatasetServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         User user = (User) request.getAttribute("currentUser");
+        if (user.getRole() == Role.ADMIN) {
+            response.sendRedirect(request.getContextPath() + "/admin?tab=projects");
+            return;
+        }
         try {
             List<Project> projects = projectDao.findVisibleTo(user).stream()
                     .filter(project -> "ACTIVE".equals(project.getStatus())).toList();
@@ -75,6 +80,10 @@ public final class DatasetServlet extends HttpServlet {
             throws ServletException, IOException {
         request.setCharacterEncoding("UTF-8");
         User user = (User) request.getAttribute("currentUser");
+        if (user.getRole() == Role.ADMIN) {
+            response.sendRedirect(request.getContextPath() + "/admin?tab=projects");
+            return;
+        }
         if (!validCsrf(request)) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, "The request could not be verified");
             return;
@@ -93,7 +102,7 @@ public final class DatasetServlet extends HttpServlet {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Unknown dataset action");
             return;
         }
-        if (user.getRole() != Role.ADMIN && user.getRole() != Role.RESEARCHER) {
+        if (user.getRole() != Role.RESEARCHER) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
             return;
         }
@@ -219,8 +228,7 @@ public final class DatasetServlet extends HttpServlet {
     }
 
     private static Path uploadRoot() {
-        String configured = System.getenv("DATAHIVE_UPLOAD_DIR");
-        return Path.of(configured == null || configured.isBlank() ? "uploads" : configured).toAbsolutePath().normalize();
+        return AppStorage.uploadDirectory();
     }
 
     private static String safeOriginalFilename(String submitted) {

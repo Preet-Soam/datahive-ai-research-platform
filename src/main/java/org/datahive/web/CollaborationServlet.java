@@ -25,6 +25,10 @@ public final class CollaborationServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         User user = (User) request.getAttribute("currentUser");
+        if (user.getRole() == Role.ADMIN) {
+            response.sendRedirect(request.getContextPath() + "/admin?tab=projects");
+            return;
+        }
         try {
             List<Project> projects = projectDao.findVisibleTo(user).stream()
                     .filter(project -> "ACTIVE".equals(project.getStatus())).toList();
@@ -58,6 +62,10 @@ public final class CollaborationServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         User actor = (User) request.getAttribute("currentUser");
+        if (actor.getRole() == Role.ADMIN) {
+            response.sendRedirect(request.getContextPath() + "/admin?tab=projects");
+            return;
+        }
         if (!validCsrf(request)) { response.sendError(HttpServletResponse.SC_BAD_REQUEST, "The request could not be verified"); return; }
         try {
             long projectId = positiveId(request.getParameter("projectId"));

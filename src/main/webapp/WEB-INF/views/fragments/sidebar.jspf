@@ -4,27 +4,27 @@
         <span class="brand-name">data<span>hive</span></span>
     </a>
     <div class="workspace-switcher">
-        <span class="workspace-icon">R</span>
-        <span class="workspace-copy"><strong>Research lab</strong><small>Personal workspace</small></span>
+        <span class="workspace-icon"><c:choose><c:when test="${isAdmin}">P</c:when><c:otherwise>R</c:otherwise></c:choose></span>
+        <span class="workspace-copy"><strong><c:choose><c:when test="${isAdmin}">Platform control</c:when><c:otherwise>Research lab</c:otherwise></c:choose></strong><small><c:choose><c:when test="${isAdmin}">Administrator workspace</c:when><c:otherwise>Personal workspace</c:otherwise></c:choose></small></span>
         <span class="workspace-chevron" aria-hidden="true">v</span>
     </div>
     <nav class="side-nav" aria-label="Main navigation">
-        <p class="nav-heading">WORKSPACE</p>
-        <a class="nav-link nav-link-home ${activePage eq 'overview' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/app" ${activePage eq 'overview' ? 'aria-current="page"' : ''}>
-            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path fill-rule="evenodd" d="M2.75 9 10 3l7.25 6v8H2.75V9Zm5.25 8h4v-5h-4v5Z"/></svg></span><span>Overview</span>
-        </a>
-        <a class="nav-link ${activePage eq 'projects' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/projects" ${activePage eq 'projects' ? 'aria-current="page"' : ''}>
-            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M2.75 6h5.1l1.7 1.7h7.7v7.5a1 1 0 0 1-1 1H3.75a1 1 0 0 1-1-1V6.9a.9.9 0 0 1 .9-.9Z"/><path d="M2.75 8h14.5"/></svg></span><span>Projects</span>
-        </a>
-        <a class="nav-link ${activePage eq 'datasets' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/datasets" ${activePage eq 'datasets' ? 'aria-current="page"' : ''}>
-            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M5 3.5h7l3 3v10H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"/><path d="M12 3.5v3h3M6.5 10h7M6.5 13h7"/></svg></span><span>Datasets</span>
-        </a>
-        <a class="nav-link ${activePage eq 'experiments' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/experiments" ${activePage eq 'experiments' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M3 16.5h14M4.5 13.5l3.2-3.2 2.5 2 5.3-6"/><path d="M12.5 6.3h3v3"/></svg></span><span><c:choose><c:when test="${isAdmin}">Model oversight</c:when><c:otherwise>Experiments</c:otherwise></c:choose></span></a>
-        <a class="nav-link ${activePage eq 'collaboration' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/collaboration" ${activePage eq 'collaboration' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><circle cx="7" cy="7" r="2.5"/><circle cx="14" cy="8" r="2"/><path d="M2.75 16c.35-2.5 1.9-3.8 4.25-3.8s3.9 1.3 4.25 3.8M12 12.5c2.5-.5 4.3.8 4.8 3.5"/></svg></span><span>Collaboration</span></a>
-
         <c:if test="${isAdmin}">
-            <p class="nav-heading nav-heading-spaced">ADMINISTRATION</p>
-            <a class="nav-link ${activePage eq 'admin' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M10 2.5 16 5v4.3c0 4-2.3 6.7-6 8.2-3.7-1.5-6-4.2-6-8.2V5l6-2.5Z"/><path d="m7.5 9.8 1.7 1.7 3.5-3.7"/></svg></span><span>Administration</span></a>
+            <p class="nav-heading">PLATFORM MANAGEMENT</p>
+            <a class="nav-link ${activeTab eq 'overview' or activePage eq 'overview' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin?tab=overview" ${activeTab eq 'overview' or activePage eq 'overview' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M3 16.5h14M4.5 13.5l3.2-3.2 2.5 2 5.3-6"/><path d="M12.5 6.3h3v3"/></svg></span><span>Overview</span></a>
+            <a class="nav-link ${activeTab eq 'users' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin?tab=users" ${activeTab eq 'users' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><circle cx="7" cy="7" r="2.5"/><circle cx="14" cy="8" r="2"/><path d="M2.75 16c.35-2.5 1.9-3.8 4.25-3.8s3.9 1.3 4.25 3.8M12 12.5c2.5-.5 4.3.8 4.8 3.5"/></svg></span><span>Users &amp; access</span></a>
+            <a class="nav-link ${activeTab eq 'projects' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin?tab=projects" ${activeTab eq 'projects' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M2.75 6h5.1l1.7 1.7h7.7v7.5a1 1 0 0 1-1 1H3.75a1 1 0 0 1-1-1V6.9a.9.9 0 0 1 .9-.9Z"/><path d="M2.75 8h14.5"/></svg></span><span>Projects</span></a>
+            <a class="nav-link ${activeTab eq 'resources' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin?tab=resources" ${activeTab eq 'resources' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M4 3.5h12v13H4zM7 7h6M7 10h6M7 13h3"/></svg></span><span>Resources</span></a>
+            <a class="nav-link ${activeTab eq 'usage' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin?tab=usage" ${activeTab eq 'usage' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M3 16.5h14M4.5 13.5l3.2-3.2 2.5 2 5.3-6"/><path d="M12.5 6.3h3v3"/></svg></span><span>Usage reports</span></a>
+            <a class="nav-link ${activeTab eq 'activity' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin?tab=activity" ${activeTab eq 'activity' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 2"/></svg></span><span>Activity log</span></a>
+        </c:if>
+        <c:if test="${not isAdmin}">
+            <p class="nav-heading">RESEARCH WORKSPACE</p>
+            <a class="nav-link nav-link-home ${activePage eq 'overview' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/app" ${activePage eq 'overview' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path fill-rule="evenodd" d="M2.75 9 10 3l7.25 6v8H2.75V9Zm5.25 8h4v-5h-4v5Z"/></svg></span><span>Overview</span></a>
+            <a class="nav-link ${activePage eq 'projects' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/projects" ${activePage eq 'projects' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M2.75 6h5.1l1.7 1.7h7.7v7.5a1 1 0 0 1-1 1H3.75a1 1 0 0 1-1-1V6.9a.9.9 0 0 1 .9-.9Z"/><path d="M2.75 8h14.5"/></svg></span><span>Projects</span></a>
+            <a class="nav-link ${activePage eq 'datasets' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/datasets" ${activePage eq 'datasets' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M5 3.5h7l3 3v10H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"/><path d="M12 3.5v3h3M6.5 10h7M6.5 13h7"/></svg></span><span>Datasets</span></a>
+            <a class="nav-link ${activePage eq 'experiments' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/experiments" ${activePage eq 'experiments' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M3 16.5h14M4.5 13.5l3.2-3.2 2.5 2 5.3-6"/><path d="M12.5 6.3h3v3"/></svg></span><span>Experiments</span></a>
+            <a class="nav-link ${activePage eq 'collaboration' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/collaboration" ${activePage eq 'collaboration' ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><circle cx="7" cy="7" r="2.5"/><circle cx="14" cy="8" r="2"/><path d="M2.75 16c.35-2.5 1.9-3.8 4.25-3.8s3.9 1.3 4.25 3.8M12 12.5c2.5-.5 4.3.8 4.8 3.5"/></svg></span><span>Collaboration</span></a>
         </c:if>
     </nav>
     <div class="sidebar-bottom">
@@ -41,7 +41,7 @@
             </a>
             <button class="account-menu-close" type="button" data-account-menu-close aria-label="Close account menu"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m5 5 10 10M15 5 5 15"/></svg></button>
         </div>
-        <div class="account-menu-workspace"><span class="account-menu-workspace-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M3 8.5 10 3l7 5.5V17H3z"/><path d="M7 17v-5h6v5"/></svg></span><span><strong>Research lab</strong><small>Personal workspace | <c:out value="${roleLabel}"/></small></span></div>
+        <div class="account-menu-workspace"><span class="account-menu-workspace-icon" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M3 8.5 10 3l7 5.5V17H3z"/><path d="M7 17v-5h6v5"/></svg></span><span><strong><c:choose><c:when test="${isAdmin}">Platform control</c:when><c:otherwise>Research lab</c:otherwise></c:choose></strong><small><c:choose><c:when test="${isAdmin}">Administrator workspace</c:when><c:otherwise>Personal workspace</c:otherwise></c:choose></small></span></div>
         <div class="account-menu-divider"></div>
         <nav class="account-menu-options" aria-label="Workspace settings">
             <a class="account-menu-item" href="${pageContext.request.contextPath}/profile#profile-photo"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3"/><path d="M10 2.8v1.5M10 15.7v1.5M17.2 10h-1.5M4.3 10H2.8m12.3-5.1-1.1 1.1M6 14l-1.1 1.1m10.2 0L14 14M6 6 4.9 4.9"/></svg><span>Settings</span></a>
@@ -62,24 +62,40 @@
         <div class="help-page" data-help-page="1" tabindex="-1">
             <p class="utility-intro">Choose a feature for a quick jump, or follow the guided example to set up a complete research workflow.</p>
             <nav class="help-links" aria-label="Quick help">
+                <c:if test="${isAdmin}">
+                    <a class="help-link" href="${pageContext.request.contextPath}/admin?tab=users"><span class="help-link-icon">01</span><span><strong>Manage people and access</strong><small>Create accounts, change roles, and restore or remove access.</small></span><b aria-hidden="true">&gt;</b></a>
+                    <a class="help-link" href="${pageContext.request.contextPath}/admin?tab=projects"><span class="help-link-icon help-link-mint">02</span><span><strong>Manage research projects</strong><small>Assign owners, review project records, and manage lifecycle.</small></span><b aria-hidden="true">&gt;</b></a>
+                    <a class="help-link" href="${pageContext.request.contextPath}/admin?tab=resources"><span class="help-link-icon help-link-violet">03</span><span><strong>Manage resources</strong><small>Maintain compute and storage capacity records.</small></span><b aria-hidden="true">&gt;</b></a>
+                    <a class="help-link" href="${pageContext.request.contextPath}/admin?tab=activity"><span class="help-link-icon help-link-gold">04</span><span><strong>Review the audit log</strong><small>See recent account, project, resource, and research actions.</small></span><b aria-hidden="true">&gt;</b></a>
+                </c:if>
+                <c:if test="${not isAdmin}">
                 <a class="help-link" href="${pageContext.request.contextPath}/projects"><span class="help-link-icon">01</span><span><strong>Set up a project</strong><small>Create a research workspace and choose its team.</small></span><b aria-hidden="true">&gt;</b></a>
                 <a class="help-link" href="${pageContext.request.contextPath}/datasets"><span class="help-link-icon help-link-mint">02</span><span><strong>Add a dataset</strong><small>Upload a CSV and connect it to a project.</small></span><b aria-hidden="true">&gt;</b></a>
                 <a class="help-link" href="${pageContext.request.contextPath}/experiments"><span class="help-link-icon help-link-violet">03</span><span><strong><c:choose><c:when test="${isAdmin}">Review model runs</c:when><c:otherwise>Track an experiment</c:otherwise></c:choose></strong><small><c:choose><c:when test="${isAdmin}">Review training progress, results, and audit logs.</c:when><c:otherwise>Save model settings, results, and training runs.</c:otherwise></c:choose></small></span><b aria-hidden="true">&gt;</b></a>
                 <a class="help-link" href="${pageContext.request.contextPath}/collaboration"><span class="help-link-icon help-link-gold">04</span><span><strong>Work with your team</strong><small>Review project members and collaboration access.</small></span><b aria-hidden="true">&gt;</b></a>
+                </c:if>
             </nav>
             <a class="help-guide-link" href="https://github.com/Preet-Soam/datahive-ai-research-platform#readme" target="_blank" rel="noopener noreferrer"><span>Read the full project guide</span><b aria-hidden="true">&gt;</b></a>
             <div class="help-pagination"><span class="help-page-count"><b>1</b> / 2</span><button class="help-next-button" type="button" data-help-next>Next: setup example <b aria-hidden="true">&gt;</b></button></div>
         </div>
         <div class="help-page help-guide-page" data-help-page="2" aria-label="Guided setup example" tabindex="-1" hidden>
-            <p class="utility-intro">Follow this example from project creation through model training. Each button opens the matching feature.</p>
-            <div class="help-example"><span class="eyebrow">SAMPLE RESEARCH WORKFLOW</span><strong>Customer churn study</strong><small>Project &gt; <code>churn.csv</code> &gt; target column <code>churned</code></small></div>
+            <p class="utility-intro"><c:choose><c:when test="${isAdmin}">Use these controls to keep the platform organized. Each button opens the matching administration section.</c:when><c:otherwise>Follow this example from project creation through model training. Each button opens the matching feature.</c:otherwise></c:choose></p>
+            <c:choose><c:when test="${isAdmin}"><div class="help-example"><span class="eyebrow">ADMINISTRATION CHECKLIST</span><strong>Keep DataHive organized</strong><small>Access &gt; projects &gt; resources &gt; reports &gt; audit history</small></div></c:when><c:otherwise><div class="help-example"><span class="eyebrow">SAMPLE RESEARCH WORKFLOW</span><strong>Customer churn study</strong><small>Project &gt; <code>churn.csv</code> &gt; target column <code>churned</code></small></div></c:otherwise></c:choose>
             <ol class="help-steps">
+                <c:if test="${isAdmin}">
+                    <li><span class="help-step-number">01</span><div><strong>Review accounts</strong><p>Assign the right role and remove access when needed; research history remains intact.</p></div><a href="${pageContext.request.contextPath}/admin?tab=users">Open</a></li>
+                    <li><span class="help-step-number help-link-mint">02</span><div><strong>Assign project owners</strong><p>Create or update projects and make an active researcher responsible for each workspace.</p></div><a href="${pageContext.request.contextPath}/admin?tab=projects">Open</a></li>
+                    <li><span class="help-step-number help-link-violet">03</span><div><strong>Maintain resource records</strong><p>Track available compute and storage capacity. These records do not provision cloud services.</p></div><a href="${pageContext.request.contextPath}/admin?tab=resources">Open</a></li>
+                    <li><span class="help-step-number help-link-gold">04</span><div><strong>Review usage and activity</strong><p>Inspect saved compute and upload totals, then review who changed platform records.</p></div><a href="${pageContext.request.contextPath}/admin?tab=activity">Open</a></li>
+                </c:if>
+                <c:if test="${not isAdmin}">
                 <li><span class="help-step-number">01</span><div><strong>Create the project</strong><p>Name it <code>Customer churn study</code> and add a short research question.</p></div><a href="${pageContext.request.contextPath}/projects?open=1" aria-label="Open project setup">Open</a></li>
                 <li><span class="help-step-number help-link-mint">02</span><div><strong>Upload the CSV</strong><p>Choose <code>churn.csv</code>, select the project, and upload to generate its profile.</p></div><a href="${pageContext.request.contextPath}/datasets" aria-label="Open dataset upload">Open</a></li>
                 <li><span class="help-step-number help-link-violet">03</span><div><strong><c:choose><c:when test="${isAdmin}">Review model results</c:when><c:otherwise>Start a baseline run</c:otherwise></c:choose></strong><p><c:choose><c:when test="${isAdmin}">Inspect researcher-submitted runs, metrics, statuses, and logs.</c:when><c:otherwise>Select the CSV, name the run <code>Churn baseline v1</code>, and enter <code>churned</code> as the binary target.</c:otherwise></c:choose></p></div><a href="${pageContext.request.contextPath}/experiments" aria-label="Open experiments">Open</a></li>
                 <li><span class="help-step-number help-link-gold">04</span><div><strong>Share the project</strong><p>Add a researcher so they can access the project's datasets and runs.</p></div><a href="${pageContext.request.contextPath}/collaboration" aria-label="Open collaboration">Open</a></li>
+                </c:if>
             </ol>
-            <div class="help-pagination"><button class="help-back-button" type="button" data-help-back>&lt; Back</button><span class="help-page-count"><b>2</b> / 2</span><a class="help-next-button" href="${pageContext.request.contextPath}/projects?open=1">Start with Projects <b aria-hidden="true">&gt;</b></a></div>
+            <div class="help-pagination"><button class="help-back-button" type="button" data-help-back>&lt; Back</button><span class="help-page-count"><b>2</b> / 2</span><c:choose><c:when test="${isAdmin}"><a class="help-next-button" href="${pageContext.request.contextPath}/admin?tab=overview">Open administration <b aria-hidden="true">&gt;</b></a></c:when><c:otherwise><a class="help-next-button" href="${pageContext.request.contextPath}/projects?open=1">Start with Projects <b aria-hidden="true">&gt;</b></a></c:otherwise></c:choose></div>
         </div>
     </section>
 </div>

@@ -6,19 +6,26 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import org.datahive.config.AppStorage;
 import org.datahive.dao.AdminDao;
 import org.datahive.dao.ActivityLogDao;
 import org.datahive.dao.ProjectDao;
 import org.datahive.model.Role;
+import org.datahive.model.Project;
+import org.datahive.model.ProjectMember;
 import org.datahive.model.User;
 import org.datahive.service.ActivityLogger;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @WebServlet(name = "AdminServlet", urlPatterns = "/admin")
 public final class AdminServlet extends HttpServlet {
@@ -49,8 +56,19 @@ public final class AdminServlet extends HttpServlet {
             request.setAttribute("initials", initials(user.getFullName()));
             request.setAttribute("users", adminDao.listUsers());
             request.setAttribute("resources", adminDao.listResources());
-            request.setAttribute("projects", projectDao.findVisibleTo(user));
+            List<Project> projects = projectDao.findVisibleTo(user);
+            request.setAttribute("projects", projects);
             request.setAttribute("researchers", projectDao.listActiveResearchers());
+            if ("projects".equals(tab)) {
+                Map<Long, List<ProjectMember>> projectTeams = new LinkedHashMap<>();
+                Map<Long, List<User>> availableProjectResearchers = new LinkedHashMap<>();
+                for (Project project : projects) {
+                    projectTeams.put(project.getId(), projectDao.listMembers(project.getId()));
+                    availableProjectResearchers.put(project.getId(), projectDao.listAvailableResearchers(project.getId()));
+                }
+                request.setAttribute("projectTeams", projectTeams);
+                request.setAttribute("availableProjectResearchers", availableProjectResearchers);
+            }
             request.setAttribute("usageTotals", "usage".equals(tab)
                     ? adminDao.usageTotals(usageRange.from(), usageRange.to())
                     : adminDao.usageTotals());
@@ -114,6 +132,13 @@ public final class AdminServlet extends HttpServlet {
                 case "createResource" -> createResource(request, response, actor);
                 case "updateResource" -> updateResource(request, response, actor);
                 case "deleteResource" -> deleteResource(request, response, actor);
+                case "createProject" -> createProject(request, response, actor);
+                case "updateProject" -> updateProject(request, response, actor);
+                case "archiveProject" -> archiveProject(request, response, actor);
+                case "restoreProject" -> restoreProject(request, response, actor);
+                case "deleteProject" -> deleteProject(request, response, actor);
+                case "addProjectMember" -> updateProjectMember(request, response, actor, true);
+                case "removeProjectMember" -> updateProjectMember(request, response, actor, false);
                 default -> response.sendError(HttpServletResponse.SC_BAD_REQUEST,
                         "Unknown administration action");
             }
@@ -239,6 +264,107 @@ public final class AdminServlet extends HttpServlet {
 
         response.sendRedirect(request.getContextPath()
                 + "/admin?tab=resources&notice=resource-deleted");
+    }
+
+    private void createProject(HttpServletRequest request, HttpServletResponse response,
+                               User actor) throws SQLException, IOException {
+        ProjectValues values = readProject(request);
+        long projectId = projectDao.create(values.title, values.description, values.ownerId);
+        ActivityLogger.record(actor, "PROJECT_CREATED", "Project", projectId,
+                "Created project workspace '" + values.title + "' for researcher account #" + values.ownerId + ".");
+        response.sendRedirect(request.getContextPath() + "/admin?tab=projects&notice=project-created");
+    }
+
+    private void updateProject(HttpServletRequest request, HttpServletResponse response,
+                               User actor) throws SQLException, IOException {
+        long id = positiveId(request.getParameter("projectId"));
+        ProjectValues values = readProject(request);
+        if (!projectDao.update(id, values.title, values.description, values.ownerId, actor)) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Project not found");
+            return;
+        }
+        ActivityLogger.record(actor, "PROJECT_UPDATED", "Project", id,
+                "Updated project '" + values.title + "' and its owner assignment.");
+        response.sendRedirect(request.getContextPath() + "/admin?tab=projects&notice=project-updated");
+    }
+
+    private void archiveProject(HttpServletRequest request, HttpServletResponse response,
+                                User actor) throws SQLException, IOException {
+        long id = positiveId(request.getParameter("projectId"));
+        if (!projectDao.archive(id, actor)) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Active project not found");
+            return;
+        }
+        ActivityLogger.record(actor, "PROJECT_ARCHIVED", "Project", id,
+                "Archived project workspace #" + id + ".");
+        response.sendRedirect(request.getContextPath() + "/admin?tab=projects&notice=project-archived");
+    }
+
+    private void restoreProject(HttpServletRequest request, HttpServletResponse response,
+                                User actor) throws SQLException, IOException {
+        long id = positiveId(request.getParameter("projectId"));
+        if (!projectDao.restore(id)) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Archived project not found");
+            return;
+        }
+        ActivityLogger.record(actor, "PROJECT_RESTORED", "Project", id,
+                "Restored project workspace #" + id + " to active status.");
+        response.sendRedirect(request.getContextPath() + "/admin?tab=projects&notice=project-restored");
+    }
+
+    private void deleteProject(HttpServletRequest request, HttpServletResponse response,
+                               User actor) throws SQLException, IOException {
+        long id = positiveId(request.getParameter("projectId"));
+        var storedFiles = projectDao.delete(id, actor);
+        if (storedFiles.isEmpty()) {
+            response.sendRedirect(request.getContextPath() + "/admin?tab=projects&error=project-busy");
+            return;
+        }
+        Path uploadRoot = AppStorage.uploadDirectory();
+        for (String filename : storedFiles.get()) {
+            Path file = uploadRoot.resolve(filename).normalize();
+            if (file.startsWith(uploadRoot)) {
+                try { Files.deleteIfExists(file); }
+                catch (IOException exception) {
+                    getServletContext().log("Could not remove uploaded file for deleted project " + id, exception);
+                }
+            }
+        }
+        ActivityLogger.record(actor, "PROJECT_DELETED", "Project", id,
+                "Deleted project workspace #" + id + " and its datasets and experiment history.");
+        response.sendRedirect(request.getContextPath() + "/admin?tab=projects&notice=project-deleted");
+    }
+
+    private ProjectValues readProject(HttpServletRequest request) throws SQLException {
+        String title = clean(request.getParameter("title"));
+        String description = clean(request.getParameter("description"));
+        long ownerId = positiveId(request.getParameter("ownerId"));
+        if (title.length() < 3 || title.length() > 160 || description.length() > 1200
+                || !projectDao.isActiveResearcher(ownerId)) {
+            throw new IllegalArgumentException("Invalid project details");
+        }
+        return new ProjectValues(title, description, ownerId);
+    }
+
+    private void updateProjectMember(HttpServletRequest request, HttpServletResponse response,
+                                     User actor, boolean add) throws SQLException, IOException {
+        long projectId = positiveId(request.getParameter("projectId"));
+        long userId = positiveId(request.getParameter("userId"));
+        Project project = projectDao.findVisibleById(projectId, actor).orElse(null);
+        if (project == null || !"ACTIVE".equals(project.getStatus())) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Active project not found");
+            return;
+        }
+        boolean changed = add ? projectDao.addResearcher(projectId, userId)
+                : projectDao.removeResearcher(projectId, userId);
+        if (!changed) {
+            response.sendRedirect(request.getContextPath() + "/admin?tab=projects&error=member");
+            return;
+        }
+        ActivityLogger.record(actor, add ? "MEMBER_ADDED" : "MEMBER_REMOVED", "Project", projectId,
+                (add ? "Added researcher" : "Removed researcher") + " account #" + userId
+                        + " from project '" + project.getTitle() + "'.");
+        response.sendRedirect(request.getContextPath() + "/admin?tab=projects&notice=team-updated");
     }
 
     private static ResourceValues readResource(HttpServletRequest request) {
@@ -367,6 +493,8 @@ public final class AdminServlet extends HttpServlet {
 
     private record ResourceValues(String name, String type, double capacity,
                                   String unit, String status, String description) { }
+
+    private record ProjectValues(String title, String description, long ownerId) { }
 
     private static final class ListTabs {
         private static boolean isKnown(String tab) {

@@ -19,8 +19,8 @@ public final class HuggingFaceJobsClient {
         if (!callbackUrl.startsWith("https://") || callbackUrl.contains("localhost") || callbackUrl.contains("127.0.0.1")) {
             return Status.unavailable("DATAHIVE_PUBLIC_URL must be a public HTTPS address for Hugging Face Jobs callbacks.");
         }
-        if (!namespace.matches("[A-Za-z0-9][A-Za-z0-9_-]{1,95}")) {
-            return Status.unavailable("HF_NAMESPACE must be a valid Hugging Face username or organization name.");
+        if (!validNamespace(namespace)) {
+            return Status.unavailable("HF_NAMESPACE must be the Hugging Face username or organization name only (for example, my-account), without a URL or repository name.");
         }
         return Status.ready(namespace, callbackUrl);
     }
@@ -97,6 +97,12 @@ public final class HuggingFaceJobsClient {
     private static String setting(String name) {
         String value = System.getenv(name);
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static boolean validNamespace(String namespace) {
+        return namespace.matches("[A-Za-z0-9_][A-Za-z0-9._-]{0,95}") &&
+                !namespace.endsWith(".") && !namespace.endsWith("-") &&
+                !namespace.contains("..") && !namespace.contains("--");
     }
 
     public record Status(boolean ready, String namespace, String callbackUrl, String message) {

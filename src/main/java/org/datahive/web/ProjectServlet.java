@@ -26,6 +26,10 @@ public final class ProjectServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         User user = (User) request.getAttribute("currentUser");
+        if (user.getRole() == Role.ADMIN) {
+            response.sendRedirect(request.getContextPath() + "/admin?tab=projects");
+            return;
+        }
         try {
             List<Project> projects = projectDao.findVisibleTo(user);
             request.setAttribute("projects", projects);
@@ -62,6 +66,10 @@ public final class ProjectServlet extends HttpServlet {
             throws ServletException, IOException {
         request.setCharacterEncoding("UTF-8");
         User user = (User) request.getAttribute("currentUser");
+        if (user.getRole() == Role.ADMIN) {
+            response.sendRedirect(request.getContextPath() + "/admin?tab=projects");
+            return;
+        }
         if (!validCsrf(request)) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, "The request could not be verified");
             return;
@@ -108,13 +116,6 @@ public final class ProjectServlet extends HttpServlet {
                 return;
             }
             long ownerId = user.getId();
-            if (user.getRole() == Role.ADMIN) {
-                ownerId = positiveId(request.getParameter("ownerId"));
-                if (!projectDao.isActiveResearcher(ownerId)) {
-                    response.sendRedirect(request.getContextPath() + "/projects?error=owner");
-                    return;
-                }
-            }
 
             if ("create".equals(action)) {
                 long projectId = projectDao.create(title, description, ownerId);

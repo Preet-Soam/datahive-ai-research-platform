@@ -130,7 +130,7 @@ The local option trains on the web server's CPU. DataHive does not execute arbit
 
 The experiment screen includes a **Hugging Face Jobs** training-location option. To enable it:
 
-1. Create a Hugging Face token that can write dataset repositories and submit Jobs. Add it as `HF_TOKEN`; add your account or organization as `HF_NAMESPACE`.
+1. Create a Hugging Face token that can write dataset repositories and submit Jobs. Add it as `HF_TOKEN`; set `HF_NAMESPACE` to the account or organization name only (for example, `my-account`), without `https://huggingface.co/` or a repository name.
 2. Set `DATAHIVE_PUBLIC_URL` to the public HTTPS origin of this DataHive deployment so the remote worker can send its result back. Local `localhost` URLs cannot receive remote callbacks.
 3. On the app server, install Python 3.10+ and `huggingface_hub` (`python -m pip install huggingface_hub`). Set `HF_PYTHON` if the Python executable is not on `PATH`. The Render Docker image installs a dedicated Python environment automatically; local Hugging Face Jobs need Python installed separately.
 4. Restart/redeploy DataHive. Choose **Hugging Face Jobs** in Experiments and explicitly submit a run.
